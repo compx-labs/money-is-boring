@@ -39,9 +39,16 @@ Requirements:
 - Device authorized with `adb devices`
 - `expo prebuild` (this repo gitignores generated `android/` and `ios/`)
 
-iOS: `pnpm ios` on a Mac after prebuild. Face ID usage string is in `app.config.js`.
+iOS (physical device by default):
 
-Do not use Expo Go. Native modules must be compiled into a dev client.
+```bash
+pnpm prebuild
+pnpm ios
+```
+
+`pnpm ios` is `expo run:ios --device` — it will not use the Simulator. Unlock the phone, trust this Mac, and enable Developer Mode. First run may need a signing Team in the generated Xcode project. Face ID usage string is in `app.config.js`.
+
+Do not use Expo Go. Native modules must be compiled into the app.
 
 ## Stack (pinned)
 
