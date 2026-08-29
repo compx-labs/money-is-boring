@@ -1,0 +1,69 @@
+{
+  "name": "money-is-boring",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.js",
+  "license": "Apache-2.0",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "prebuild": "expo prebuild",
+    "type-check": "tsc --noEmit",
+    "postinstall": "patch-package"
+  },
+  "dependencies": {
+    "@algorandfoundation/accounts-keystore-extension": "1.0.0-canary.10",
+    "@algorandfoundation/accounts-store": "1.0.0-canary.2",
+    "@algorandfoundation/keystore-core": "1.0.0-canary.3",
+    "@algorandfoundation/log-store": "1.0.0-canary.3",
+    "@algorandfoundation/react-native-keystore": "1.0.0-canary.19",
+    "@algorandfoundation/wallet-provider": "1.0.0-canary.5",
+    "@tanstack/react-store": "0.9.1",
+    "@tanstack/store": "0.9.3",
+    "algosdk": "3.7.0",
+    "before-after-hook": "^4.0.0",
+    "buffer": "^6.0.3",
+    "expo": "^54.0.33",
+    "expo-clipboard": "~8.0.8",
+    "expo-constants": "~18.0.13",
+    "expo-linking": "~8.0.11",
+    "expo-router": "~6.0.23",
+    "expo-splash-screen": "~31.0.13",
+    "expo-status-bar": "~3.0.9",
+    "expo-system-ui": "~6.0.9",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-keychain": "10.0.0",
+    "react-native-mmkv": "^4.3.1",
+    "react-native-quick-base64": "3.0.0",
+    "react-native-quick-crypto": "1.1.5",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-svg": "15.12.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "expo-build-properties": "~1.0.10",
+    "patch-package": "^8.0.1",
+    "typescript": "~5.8.3"
+  },
+  "overrides": {
+    "@algorandfoundation/react-native-keystore": {
+      "react-native-mmkv": "$react-native-mmkv",
+      "react-native-quick-crypto": "$react-native-quick-crypto"
+    }
+  },
+  "pnpm": {
+    "overrides": {
+      "@algorandfoundation/accounts-store": "$@algorandfoundation/accounts-store",
+      "@algorandfoundation/log-store": "$@algorandfoundation/log-store",
+      "@algorandfoundation/react-native-keystore": "$@algorandfoundation/react-native-keystore",
+      "@tanstack/store": "0.9.3",
+      "react-native-mmkv": "$react-native-mmkv",
+      "react-native-quick-crypto": "$react-native-quick-crypto"
+    }
+  },
+  "packageManager": "pnpm@10.28.2"
+}
