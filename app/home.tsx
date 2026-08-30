@@ -9,10 +9,11 @@ import { useWalletBalances } from '@/hooks/useWalletBalances';
 import { algorandAddressFromKey, findWalletAccount } from '@/lib/keystore/wallet-account';
 import { formatAmount, fractionDigits, truncateAddress } from '@/lib/algorand/balances';
 import { colors, fonts } from '@/lib/theme';
-import { Redirect } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 
 export default function Home() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { keys, accounts } = useProvider();
   const wallet = findWalletAccount(accounts, keys);
   const address = wallet ? algorandAddressFromKey(wallet.key) : '';
@@ -51,6 +52,15 @@ export default function Home() {
       </View>
 
       {balances.error ? <Text style={styles.error}>couldn’t load balances</Text> : null}
+
+      <Pressable
+        onPress={() => router.push('/swap')}
+        accessibilityRole="button"
+        accessibilityLabel="Swap"
+        style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+      >
+        <Text style={styles.buttonLabel}>swap</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -116,5 +126,21 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontFamily: fonts.regular,
     fontSize: 26,
+  },
+  button: {
+    alignSelf: 'stretch',
+    backgroundColor: colors.button,
+    borderRadius: 8,
+    minHeight: 80,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonPressed: { opacity: 0.85 },
+  buttonLabel: {
+    color: colors.buttonText,
+    fontFamily: fonts.bold,
+    fontSize: 32,
   },
 });

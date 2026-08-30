@@ -69,6 +69,31 @@ async function assetMeta(id: number): Promise<{ unit: string; decimals: number }
   }
 }
 
+export async function lookupAsset(id: number): Promise<{ unit: string; decimals: number }> {
+  if (id === 0) return { unit: 'ALGO', decimals: 6 };
+  return assetMeta(id);
+}
+
+/** Display amount → base units as a decimal string Hay expects. */
+export function toBaseUnits(display: string, decimals: number): string {
+  const trimmed = display.trim();
+  if (!trimmed || trimmed === '.') return '0';
+  const [wholeRaw, fracRaw = ''] = trimmed.split('.');
+  const whole = wholeRaw.replace(/^0+(?=\d)/, '') || '0';
+  const frac = (fracRaw + '0'.repeat(decimals)).slice(0, decimals);
+  const combined = `${whole}${frac}`.replace(/^0+(?=\d)/, '') || '0';
+  return combined;
+}
+
+export function fromBaseUnits(amount: string, decimals: number): string {
+  if (!amount || amount === '0') return '0';
+  const pad = amount.padStart(decimals + 1, '0');
+  const i = pad.length - decimals;
+  const whole = pad.slice(0, i).replace(/^0+(?=\d)/, '') || '0';
+  const frac = pad.slice(i).replace(/0+$/, '');
+  return frac ? `${whole}.${frac}` : whole;
+}
+
 /** Account + every opted-in ASA from algod. No indexer, no junk filter. */
 export async function fetchBalances(address: string): Promise<Balances> {
   try {
