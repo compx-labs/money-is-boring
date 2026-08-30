@@ -209,8 +209,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.button,
     borderRadius: 999,
     minHeight: 42,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   sendLabel: {
     color: colors.buttonText,

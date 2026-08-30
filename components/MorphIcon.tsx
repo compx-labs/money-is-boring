@@ -43,7 +43,10 @@ export function MorphIcon({
   }, []);
 
   React.useEffect(() => {
-    if (name === shown) return;
+    if (name === shown) {
+      progress.setValue(1);
+      return;
+    }
     if (reduceMotion) {
       setShown(name);
       progress.setValue(1);
@@ -57,9 +60,15 @@ export function MorphIcon({
       useNativeDriver: true,
     });
     motion.start(({ finished }) => {
-      if (finished) setShown(name);
+      if (finished) {
+        setShown(name);
+        progress.setValue(1);
+      }
     });
-    return () => motion.stop();
+    return () => {
+      motion.stop();
+      progress.setValue(1);
+    };
   }, [name, progress, reduceMotion, shown]);
 
   React.useEffect(() => {
@@ -90,27 +99,48 @@ export function MorphIcon({
         useNativeDriver: true,
       }),
     ]);
-    motion.start();
-    return () => motion.stop();
+    motion.start(({ finished }) => {
+      if (finished) bounceScale.setValue(1);
+    });
+    return () => {
+      motion.stop();
+      bounceScale.setValue(1);
+    };
   }, [bounce, bounceScale, reduceMotion]);
 
   const incoming = name !== shown;
-  const outgoingOpacity = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: incoming ? [1, 0] : [1, 1],
-  });
-  const incomingOpacity = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-  });
-  const outgoingScale = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: incoming ? [1, 0.72] : [1, 1],
-  });
-  const incomingScale = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.72, 1],
-  });
+  const outgoingOpacity = React.useMemo(
+    () =>
+      progress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 0],
+      }),
+    [progress],
+  );
+  const incomingOpacity = React.useMemo(
+    () =>
+      progress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, 1],
+      }),
+    [progress],
+  );
+  const outgoingScale = React.useMemo(
+    () =>
+      progress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 0.72],
+      }),
+    [progress],
+  );
+  const incomingScale = React.useMemo(
+    () =>
+      progress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.72, 1],
+      }),
+    [progress],
+  );
 
   return (
     <Animated.View style={{ transform: [{ scale: bounceScale }] }}>
@@ -118,7 +148,9 @@ export function MorphIcon({
         <Animated.View
           style={[
             styles.layer,
-            { opacity: outgoingOpacity, transform: [{ scale: outgoingScale }] },
+            incoming
+              ? { opacity: outgoingOpacity, transform: [{ scale: outgoingScale }] }
+              : { opacity: 1 },
           ]}
         >
           <Ionicons name={shown} size={size} color={color} />

@@ -52,9 +52,11 @@ function CircleButton({
 function Row({ label, value }: { label: string; value: number | null }) {
   return (
     <HapticPressable accessibilityRole="button" accessibilityLabel={label} style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <View style={styles.rowValuePill}>
-        <RollingNumber value={value} format={formatBalance} style={styles.rowValue} />
+      <View style={styles.rowInner}>
+        <Text style={styles.rowLabel}>{label}</Text>
+        <View style={styles.rowValuePill}>
+          <RollingNumber value={value} format={formatBalance} style={styles.rowValue} />
+        </View>
       </View>
     </HapticPressable>
   );
@@ -116,12 +118,7 @@ export default function Home() {
           <Text style={styles.address} numberOfLines={1}>
             {truncateAddress(address, 4)}
           </Text>
-          <MorphIcon
-            name={copied ? 'checkmark' : 'copy-outline'}
-            size={21}
-            color={colors.muted}
-            bounce={copied}
-          />
+          <Ionicons name="chevron-down" size={21} color={colors.muted} />
         </HapticPressable>
       </View>
 
@@ -178,7 +175,7 @@ const styles = StyleSheet.create({
     gap: 6,
     backgroundColor: colors.bg,
     borderColor: colors.line,
-    borderWidth: 8,
+    borderWidth: 2,
     borderRadius: 999,
     paddingHorizontal: 18,
     paddingVertical: 9,
@@ -206,22 +203,32 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
   row: {
+    alignSelf: 'stretch',
+  },
+  rowInner: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    minHeight: 40,
   },
   rowLabel: {
     color: colors.muted,
     fontFamily: fonts.semibold,
     fontSize: 21,
+    lineHeight: 24,
     letterSpacing: 2,
+    flexShrink: 1,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   rowValuePill: {
     backgroundColor: colors.button,
     borderRadius: 999,
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
   },
   rowValue: {
     color: colors.buttonText,

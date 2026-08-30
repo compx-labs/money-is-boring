@@ -3,12 +3,33 @@ import {
   AccessibilityInfo,
   Animated,
   Pressable,
+  StyleSheet,
   type PressableProps,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 import { tick } from '@/lib/motion/haptics';
 import { pressInSpring, pressOutSpring } from '@/lib/motion/press';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+type PressableStyle = PressableProps['style'];
+
+function layoutFrom(style: PressableStyle): ViewStyle {
+  const resolved = typeof style === 'function' ? style({ pressed: false }) : style;
+  const flat = StyleSheet.flatten(resolved as StyleProp<ViewStyle>) ?? {};
+  return {
+    flex: flat.flex,
+    flexGrow: flat.flexGrow,
+    flexShrink: flat.flexShrink,
+    flexBasis: flat.flexBasis,
+    alignSelf: flat.alignSelf,
+    width: flat.width,
+    height: flat.height,
+    minWidth: flat.minWidth,
+    minHeight: flat.minHeight,
+    maxWidth: flat.maxWidth,
+    maxHeight: flat.maxHeight,
+  };
+}
 
 /** Tick when the control seats, plus the shared ~0.97 press spring. */
 export function HapticPressable({
@@ -44,22 +65,24 @@ export function HapticPressable({
   };
 
   return (
-    <AnimatedPressable
-      {...props}
-      disabled={disabled}
-      onPressIn={(event) => {
-        to(true);
-        onPressIn?.(event);
-      }}
-      onPressOut={(event) => {
-        to(false);
-        onPressOut?.(event);
-      }}
-      onPress={(event) => {
-        tick();
-        onPress?.(event);
-      }}
-      style={(state) => [typeof style === 'function' ? style(state) : style, { transform: [{ scale }] }]}
-    />
+    <Animated.View style={[layoutFrom(style), { transform: [{ scale }] }]}>
+      <Pressable
+        {...props}
+        disabled={disabled}
+        onPressIn={(event) => {
+          to(true);
+          onPressIn?.(event);
+        }}
+        onPressOut={(event) => {
+          to(false);
+          onPressOut?.(event);
+        }}
+        onPress={(event) => {
+          tick();
+          onPress?.(event);
+        }}
+        style={style}
+      />
+    </Animated.View>
   );
 }

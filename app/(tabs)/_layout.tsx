@@ -1,5 +1,5 @@
 import { Redirect, Tabs } from 'expo-router';
-import type { ComponentProps } from 'react';
+import React, { type ComponentProps } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HapticPressable } from '@/components/HapticPressable';
@@ -11,43 +11,49 @@ import { colors, fonts } from '@/lib/theme';
 
 type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
 
-function BottomTabBar({ state, descriptors, navigation }: TabBarProps) {
-  const insets = useSafeAreaInsets();
+const BottomTabBar = React.memo(
+  function BottomTabBar({ state, descriptors, navigation }: TabBarProps) {
+    const insets = useSafeAreaInsets();
 
-  return (
-    <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-      {state.routes.map((route, index) => {
-        const focused = state.index === index;
-        const { options } = descriptors[route.key];
-        const color = focused ? colors.text : colors.muted;
-        const label = options.title ?? route.name;
+    return (
+      <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+        {state.routes.map((route, index) => {
+          const focused = state.index === index;
+          const { options } = descriptors[route.key];
+          const color = focused ? colors.text : colors.muted;
+          const label = options.title ?? route.name;
 
-        return (
-          <HapticPressable
-            key={route.key}
-            onPress={() => {
-              const event = navigation.emit({
-                type: 'tabPress',
-                target: route.key,
-                canPreventDefault: true,
-              });
-              if (!event.defaultPrevented) {
-                navigation.navigate(route.name, route.params);
-              }
-            }}
-            accessibilityRole="button"
-            accessibilityState={{ selected: focused }}
-            accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
-            style={styles.tabItem}
-          >
-            {options.tabBarIcon?.({ focused, color, size: 24 })}
-            <Text style={[styles.tabLabel, { color }]}>{label}</Text>
-          </HapticPressable>
-        );
-      })}
-    </View>
-  );
-}
+          return (
+            <HapticPressable
+              key={route.key}
+              onPress={() => {
+                const event = navigation.emit({
+                  type: 'tabPress',
+                  target: route.key,
+                  canPreventDefault: true,
+                });
+                if (!event.defaultPrevented) {
+                  navigation.navigate(route.name, route.params);
+                }
+              }}
+              accessibilityRole="button"
+              accessibilityState={{ selected: focused }}
+              accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
+              style={styles.tabItem}
+            >
+              {options.tabBarIcon?.({ focused, color, size: 24 })}
+              <Text style={[styles.tabLabel, { color }]}>{label}</Text>
+            </HapticPressable>
+          );
+        })}
+      </View>
+    );
+  },
+  (prev, next) =>
+    prev.state.index === next.state.index &&
+    prev.state.key === next.state.key &&
+    prev.state.routes === next.state.routes,
+);
 
 export default function TabsLayout() {
   const { keys, accounts } = useProvider();
@@ -115,6 +121,7 @@ export default function TabsLayout() {
 const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
+    width: '100%',
     backgroundColor: colors.bg,
     borderTopColor: colors.line,
     borderTopWidth: StyleSheet.hairlineWidth,
