@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { RollingNumber } from '@/components/RollingNumber';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { useProvider } from '@/hooks/useProvider';
 import { useWalletBalances } from '@/hooks/useWalletBalances';
@@ -27,6 +28,11 @@ import { quoteHaySwap, type HayQuote } from '@/lib/hay/router';
 import { colors, fonts, USDC_ASA_ID } from '@/lib/theme';
 
 const DEBOUNCE_MS = 450;
+
+function formatQuoted(value: number, decimals: number): string {
+  if (value === 0) return '0';
+  return value.toFixed(decimals).replace(/\.?0+$/, '');
+}
 
 function mergeAssets(holdings: Holding[]): Holding[] {
   const byId = new Map<number, Holding>();
@@ -130,7 +136,11 @@ export default function Swap() {
 
   const outDecimals = toAsset?.decimals ?? 6;
   const outLabel = toAsset?.unit ?? '…';
-  const quotedOut = quote ? fromBaseUnits(quote.quotedAmount, outDecimals) : quoting ? '…' : '—';
+  const quoteValue = quote ? Number(fromBaseUnits(quote.quotedAmount, outDecimals)) : null;
+  const formatQuotedAmount = React.useCallback(
+    (n: number) => formatQuoted(n, outDecimals),
+    [outDecimals],
+  );
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -159,9 +169,10 @@ export default function Swap() {
             style={styles.amount}
             accessibilityLabel="Swap amount"
           />
-          <Text style={styles.balance}>
-            {formatAmount(fromAsset?.amount ?? 0)} {fromAsset?.unit}
-          </Text>
+          <View style={styles.balanceRow}>
+            <RollingNumber value={fromAsset?.amount ?? 0} format={formatAmount} style={styles.balance} />
+            <Text style={styles.balance}> {fromAsset?.unit}</Text>
+          </View>
         </View>
 
         <Pressable onPress={invert} accessibilityRole="button" accessibilityLabel="Swap direction" style={styles.flip}>
@@ -173,7 +184,12 @@ export default function Swap() {
           <Pressable onPress={() => pick(toId, fromId, setToId)} accessibilityRole="button">
             <Text style={styles.asset}>{outLabel}</Text>
           </Pressable>
-          <Text style={styles.quoted}>{quotedOut}</Text>
+          <RollingNumber
+            value={quoteValue}
+            format={formatQuotedAmount}
+            placeholder={quoting ? '…' : '—'}
+            style={styles.quoted}
+          />
         </View>
 
         {quote?.userPriceImpact != null ? (
@@ -249,11 +265,19 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fonts.semibold,
     fontSize: 40,
+    lineHeight: 48,
+    fontVariant: ['tabular-nums'],
+  },
+  balanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   balance: {
     color: colors.muted,
     fontFamily: fonts.regular,
     fontSize: 26,
+    lineHeight: 32,
+    fontVariant: ['tabular-nums'],
   },
   flip: {
     alignSelf: 'center',

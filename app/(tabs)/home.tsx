@@ -4,6 +4,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SittingCube } from '@/components/SittingCube';
+import { RollingNumber } from '@/components/RollingNumber';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { useProvider } from '@/hooks/useProvider';
 import { useWalletBalances } from '@/hooks/useWalletBalances';
@@ -14,8 +15,7 @@ import { Redirect, useRouter } from 'expo-router';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
-function formatBalance(value: number | null): string {
-  if (value === null) return '—';
+function formatBalance(value: number): string {
   return value.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -43,12 +43,12 @@ function CircleButton({
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value }: { label: string; value: number | null }) {
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
       <View style={styles.rowValuePill}>
-        <Text style={styles.rowValue}>{value}</Text>
+        <RollingNumber value={value} format={formatBalance} style={styles.rowValue} />
       </View>
     </View>
   );
@@ -108,7 +108,7 @@ export default function Home() {
 
         <View style={styles.balances}>
           {balances.holdings.map((holding) => (
-            <Row key={holding.id} label={holding.unit} value={formatBalance(holding.amount)} />
+            <Row key={holding.id} label={holding.unit} value={holding.amount} />
           ))}
         </View>
 
@@ -183,6 +183,7 @@ const styles = StyleSheet.create({
     color: colors.buttonText,
     fontFamily: fonts.regular,
     fontSize: 20,
+    lineHeight: 24,
     fontVariant: ['tabular-nums'],
   },
   actions: {
