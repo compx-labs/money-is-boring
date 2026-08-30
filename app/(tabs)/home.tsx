@@ -4,6 +4,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HapticPressable } from '@/components/HapticPressable';
+import { MorphIcon } from '@/components/MorphIcon';
 import { SittingCube } from '@/components/SittingCube';
 import { RollingNumber } from '@/components/RollingNumber';
 import { LoadingScreen } from '@/components/LoadingScreen';
@@ -12,9 +13,12 @@ import { useWalletBalances } from '@/hooks/useWalletBalances';
 import { algorandAddressFromKey, findWalletAccount } from '@/lib/keystore/wallet-account';
 import { truncateAddress } from '@/lib/algorand/balances';
 import { colors, fonts } from '@/lib/theme';
+import { ICON_MORPH_MS } from '@/lib/motion/icon';
 import { Redirect, useRouter } from 'expo-router';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
+
+const ICON_HOLD_MS = ICON_MORPH_MS + 280;
 
 function formatBalance(value: number): string {
   return value.toLocaleString(undefined, {
@@ -39,7 +43,7 @@ function CircleButton({
       accessibilityLabel={label}
       style={styles.circle}
     >
-      <Ionicons name={icon} size={24} color={colors.buttonText} />
+      <MorphIcon name={icon} size={24} color={colors.buttonText} bounce={icon === 'checkmark'} />
     </HapticPressable>
   );
 }
@@ -62,7 +66,20 @@ export default function Home() {
   const wallet = findWalletAccount(accounts, keys);
   const address = wallet ? algorandAddressFromKey(wallet.key) : '';
   const [copied, setCopied] = React.useState(false);
+  const [sent, setSent] = React.useState(false);
   const balances = useWalletBalances(address);
+
+  React.useEffect(() => {
+    if (!copied) return;
+    const id = setTimeout(() => setCopied(false), ICON_HOLD_MS);
+    return () => clearTimeout(id);
+  }, [copied]);
+
+  React.useEffect(() => {
+    if (!sent) return;
+    const id = setTimeout(() => setSent(false), ICON_HOLD_MS);
+    return () => clearTimeout(id);
+  }, [sent]);
 
   if (!wallet || !address) {
     if (keys.length === 0) return <Redirect href="/onboarding" />;
@@ -72,7 +89,11 @@ export default function Home() {
   const onCopy = async () => {
     await Clipboard.setStringAsync(address);
     setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
+  };
+
+  const onSend = () => {
+    setSent(true);
+    router.push('/send');
   };
 
   return (
@@ -81,13 +102,18 @@ export default function Home() {
         <HapticPressable
           onPress={onCopy}
           accessibilityRole="button"
-          accessibilityLabel="Wallet address"
+          accessibilityLabel={copied ? 'Copied address' : 'Copy address'}
           style={styles.addressPill}
         >
           <Text style={styles.address} numberOfLines={1}>
-            {copied ? 'copied' : truncateAddress(address, 4)}
+            {truncateAddress(address, 4)}
           </Text>
-          <Ionicons name="chevron-down" size={21} color={colors.muted} />
+          <MorphIcon
+            name={copied ? 'checkmark' : 'copy-outline'}
+            size={21}
+            color={colors.muted}
+            bounce={copied}
+          />
         </HapticPressable>
       </View>
 
@@ -103,7 +129,11 @@ export default function Home() {
             label="Swap"
             onPress={() => router.push('/swap')}
           />
-          <CircleButton icon="arrow-up" label="Send" onPress={() => router.push('/send')} />
+          <CircleButton
+            icon={sent ? 'checkmark' : 'arrow-up'}
+            label="Send"
+            onPress={onSend}
+          />
           <CircleButton icon="arrow-down" label="Receive" onPress={() => router.push('/receive')} />
         </View>
 

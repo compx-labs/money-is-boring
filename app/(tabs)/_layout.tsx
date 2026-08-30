@@ -1,5 +1,4 @@
 import { Redirect, withLayoutContext } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import {
   createMaterialTopTabNavigator,
   type MaterialTopTabBarProps,
@@ -10,6 +9,7 @@ import { type ParamListBase, type TabNavigationState } from '@react-navigation/n
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HapticPressable } from '@/components/HapticPressable';
+import { MorphIcon } from '@/components/MorphIcon';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { useProvider } from '@/hooks/useProvider';
 import { findWalletAccount } from '@/lib/keystore/wallet-account';
@@ -84,7 +84,12 @@ export default function TabsLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
+            <MorphIcon
+              name={focused ? 'home' : 'home-outline'}
+              size={24}
+              color={color}
+              bounce={focused}
+            />
           ),
         }}
       />
@@ -93,7 +98,12 @@ export default function TabsLayout() {
         options={{
           title: 'Agent',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'chatbubbles' : 'chatbubbles-outline'} size={24} color={color} />
+            <MorphIcon
+              name={focused ? 'chatbubbles' : 'chatbubbles-outline'}
+              size={24}
+              color={color}
+              bounce={focused}
+            />
           ),
         }}
       />
@@ -102,7 +112,12 @@ export default function TabsLayout() {
         options={{
           title: 'Explore',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'compass' : 'compass-outline'} size={24} color={color} />
+            <MorphIcon
+              name={focused ? 'compass' : 'compass-outline'}
+              size={24}
+              color={color}
+              bounce={focused}
+            />
           ),
         }}
       />
