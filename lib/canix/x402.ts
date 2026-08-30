@@ -6,6 +6,7 @@ import {
 } from 'algosdk';
 import type { KeyStoreAPI } from '@algorandfoundation/react-native-keystore';
 import { algod } from '@/lib/algorand/client';
+import { signWithAc2 } from '@/lib/keystore/ac2';
 
 type Accept = {
   scheme: string;
@@ -77,7 +78,12 @@ export async function signX402Payment(
   assignGroupID(group);
 
   const paymentIndex = feePayer ? 1 : 0;
-  const sig = await store.sign(keyId, group[paymentIndex].bytesToSign());
+  const sig = await signWithAc2(
+    store,
+    keyId,
+    group[paymentIndex].bytesToSign(),
+    'Approve this Canix payment',
+  );
   const signedPayment = group[paymentIndex].attachSignature(address, sig);
 
   const paymentGroup: string[] = group.map((txn, i) => {

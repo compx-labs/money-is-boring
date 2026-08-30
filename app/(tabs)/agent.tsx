@@ -83,11 +83,10 @@ export default function Agent() {
         },
       });
       setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, text: reply.text } : m)));
-      if (reply.chargedMicro > 0) {
-        setResult(`ZeroSignal · ${fromBaseUnits(String(reply.chargedMicro), 6)} USDC`);
-      } else {
-        setResult('');
-      }
+      const zs = reply.chargedMicro > 0 ? `ZeroSignal · ${fromBaseUnits(String(reply.chargedMicro), 6)} USDC` : '';
+      const canix =
+        reply.canixMicro > 0n ? `Canix · ${fromBaseUnits(String(reply.canixMicro), 6)} USDC` : '';
+      setResult([zs, canix].filter(Boolean).join(' · '));
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m.id !== assistantId && m.id !== user.id));
       setDraft(text);
@@ -153,7 +152,7 @@ export default function Agent() {
         >
           {messages.length === 0 ? (
             <Text style={styles.meta}>
-              In-wallet chat. Inference is ZeroSignal, pay per call from this device. No local daemon.
+              In-wallet chat. Canix quotes and Hay groups wait for a yes on this phone. Nothing spends without that.
             </Text>
           ) : null}
           {messages.map((m) =>

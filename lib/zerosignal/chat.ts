@@ -1,5 +1,6 @@
 import type { KeyStoreAPI } from '@algorandfoundation/react-native-keystore';
 import { sha256 } from '@noble/hashes/sha2.js';
+import { AGENT_CANIX_TOOLS, runAgentTool } from '@/lib/canix/agent-tools';
 import { ZS_MODEL } from '@/lib/theme';
 import { b64Encode } from '@/lib/zerosignal/bytes';
 import { discoverZsNode, type ZsNode } from '@/lib/zerosignal/discover';
@@ -38,8 +39,9 @@ import {
 const MAX_OUTPUT = 2048;
 const MAX_PRICE_MICRO = 100_000;
 const RESERVE_MIN_TTL_SEC = 15;
+const MAX_TOOL_ROUNDS = 4;
 const SYSTEM_PROMPT =
-  'You are the in-wallet agent for Money is Boring, a simple Algorand wallet. Be concise. You cannot spend, swap, or call tools.';
+  'You are the in-wallet agent for Money is Boring, a simple Algorand wallet. Be concise. You can look up Canix opportunities and quotes and build unsigned Hay groups from Canix. You cannot broadcast anything yourself. Every Canix spend waits for AC2 — a yes on this phone — then this device signs user legs and submits. Canix never submits. Do not mention Amarok, spending limits, or a bypass API key. Never claim a swap or transfer landed unless approve_canix_spend returned a transaction id.';
 
 export type ChatTurn = { role: 'user' | 'assistant'; text: string };
 
@@ -166,13 +168,50 @@ function isTerminal(obj: unknown): boolean {
   return type === 'response.completed' || type === 'response.incomplete' || type === 'response.failed';
 }
 
+type FunctionCall = { call_id: string; name: string; arguments: string };
+
 type StreamAcc = {
   text: string;
   contentFrames: Uint8Array[];
   frameIndex: number;
   settleGroupB64: string | null;
   receipt: UsageReceipt | null;
+  functionCalls: Map<string, FunctionCall>;
 };
+
+function considerFunctionItem(item: unknown, calls: Map<string, FunctionCall>): void {
+  if (!item || typeof item !== 'object') return;
+  const it = item as Record<string, unknown>;
+  if (it.type !== 'function_call' || typeof it.name !== 'string') return;
+  const call_id = String(it.call_id ?? it.id ?? it.name);
+  calls.set(call_id, {
+    call_id,
+    name: it.name,
+    arguments: typeof it.arguments === 'string' ? it.arguments : JSON.stringify(it.arguments ?? {}),
+  });
+}
+
+function ingestFunctionCall(obj: unknown, calls: Map<string, FunctionCall>): void {
+  if (!obj || typeof obj !== 'object') return;
+  const rec = obj as Record<string, unknown>;
+  if (rec.type === 'response.output_item.done' || rec.type === 'response.output_item.added') {
+    considerFunctionItem(rec.item, calls);
+  }
+  if (rec.type === 'response.function_call_arguments.done') {
+    const call_id = String(rec.call_id ?? rec.item_id ?? '');
+    if (!call_id) return;
+    const prev = calls.get(call_id);
+    const args = typeof rec.arguments === 'string' ? rec.arguments : prev?.arguments ?? '{}';
+    const name = typeof rec.name === 'string' ? rec.name : prev?.name;
+    if (name) calls.set(call_id, { call_id, name, arguments: args });
+  }
+  if (rec.type === 'response.completed' && rec.response && typeof rec.response === 'object') {
+    const output = (rec.response as { output?: unknown }).output;
+    if (Array.isArray(output)) {
+      for (const item of output) considerFunctionItem(item, calls);
+    }
+  }
+}
 
 function handleSse(
   ev: SseEvent,
@@ -210,6 +249,7 @@ function handleSse(
   acc.contentFrames.push(plaintext);
   try {
     const obj = JSON.parse(new TextDecoder().decode(plaintext));
+    ingestFunctionCall(obj, acc.functionCalls);
     const next = collectDelta(obj, acc.text);
     if (next !== acc.text) {
       acc.text = next;
@@ -234,6 +274,7 @@ async function readSse(
     frameIndex: 0,
     settleGroupB64: null,
     receipt: null,
+    functionCalls: new Map(),
   };
   const reader = res.body?.getReader?.();
   if (!reader) {
@@ -267,32 +308,21 @@ function bodyHashHexLocal(frames: Uint8Array[]): string {
   return Buffer.from(h.digest()).toString('hex');
 }
 
-/**
- * One in-wallet chat turn. Speaks ZeroSignal's sealed pay-per-call protocol
- * from this device — no zs-proxy daemon, no always-on host, no relay.
- */
-export async function sendAgentMessage(input: {
+type ResponseInput =
+  | { role: 'system' | 'user' | 'assistant'; content: string }
+  | { type: 'function_call'; call_id: string; name: string; arguments: string }
+  | { type: 'function_call_output'; call_id: string; output: string };
+
+async function sealedRound(input: {
+  node: ZsNode;
   store: Pick<KeyStoreAPI, 'sign'>;
   keyId: string;
   address: string;
-  history: ChatTurn[];
+  body: Uint8Array;
   onStatus?: (step: string) => void;
   onDelta?: (text: string) => void;
-}): Promise<{ text: string; chargedMicro: number }> {
-  const { store, keyId, address } = input;
-  input.onStatus?.('finding a node');
-  const node = await discoverZsNode(ZS_MODEL);
-
-  const requestBody = {
-    model: node.model,
-    input: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      ...input.history.map((t) => ({ role: t.role, content: t.text })),
-    ],
-    stream: true,
-    max_output_tokens: MAX_OUTPUT,
-  };
-  const body = new TextEncoder().encode(JSON.stringify(requestBody));
+}): Promise<{ acc: StreamAcc; chargedMicro: number }> {
+  const { node, store, keyId, address, body } = input;
   const identity = await newAgeIdentity();
 
   input.onStatus?.('reserving');
@@ -395,6 +425,92 @@ export async function sendAgentMessage(input: {
   }
 
   reserved.responseKey.fill(0);
-  if (!acc.text) throw new Error('ZeroSignal returned no text');
-  return { text: acc.text, chargedMicro };
+  return { acc, chargedMicro };
+}
+
+/**
+ * One in-wallet chat turn. Speaks ZeroSignal's sealed pay-per-call protocol
+ * from this device — no zs-proxy daemon, no always-on host, no relay.
+ * Canix tools run on this device; each spend still waits for AC2.
+ */
+export async function sendAgentMessage(input: {
+  store: Pick<KeyStoreAPI, 'sign'>;
+  keyId: string;
+  address: string;
+  history: ChatTurn[];
+  onStatus?: (step: string) => void;
+  onDelta?: (text: string) => void;
+}): Promise<{ text: string; chargedMicro: number; canixMicro: bigint }> {
+  const { store, keyId, address } = input;
+  input.onStatus?.('finding a node');
+  const node = await discoverZsNode(ZS_MODEL);
+
+  const conversation: ResponseInput[] = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    ...input.history.map((t) => ({ role: t.role, content: t.text })),
+  ];
+
+  let chargedMicro = 0;
+  let canixMicro = 0n;
+  let lastText = '';
+  let spoken = '';
+
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+    const includeTools = round < MAX_TOOL_ROUNDS - 1;
+    const requestBody: Record<string, unknown> = {
+      model: node.model,
+      input: conversation,
+      stream: true,
+      max_output_tokens: MAX_OUTPUT,
+    };
+    if (includeTools) {
+      requestBody.tools = AGENT_CANIX_TOOLS;
+      requestBody.tool_choice = 'auto';
+    }
+    const body = new TextEncoder().encode(JSON.stringify(requestBody));
+    const { acc, chargedMicro: roundMicro } = await sealedRound({
+      node,
+      store,
+      keyId,
+      address,
+      body,
+      onStatus: input.onStatus,
+      onDelta: (text) => input.onDelta?.(spoken + text),
+    });
+    chargedMicro += roundMicro;
+    lastText = acc.text;
+    const calls = [...acc.functionCalls.values()];
+    if (calls.length === 0) {
+      if (!acc.text) throw new Error('ZeroSignal returned no text');
+      return { text: spoken + acc.text, chargedMicro, canixMicro };
+    }
+
+    if (acc.text) spoken += `${acc.text}\n`;
+    for (const call of calls) {
+      conversation.push({
+        type: 'function_call',
+        call_id: call.call_id,
+        name: call.name,
+        arguments: call.arguments,
+      });
+    }
+    for (const call of calls) {
+      input.onStatus?.(`Canix · ${call.name}`);
+      const result = await runAgentTool(call.name, call.arguments, {
+        store,
+        keyId,
+        address,
+        onStatus: input.onStatus,
+      });
+      canixMicro += result.paidMicro;
+      conversation.push({
+        type: 'function_call_output',
+        call_id: call.call_id,
+        output: result.output,
+      });
+    }
+  }
+
+  if (!lastText && !spoken) throw new Error('ZeroSignal returned no text');
+  return { text: (spoken + lastText).trim(), chargedMicro, canixMicro };
 }
