@@ -1,37 +1,102 @@
 import { ALGOD_URL, USDC_ASA_ID } from '@/lib/theme';
 
+export const BALANCE_POLL_MS = 10_000;
+
+export type Holding = {
+  id: number;
+  unit: string;
+  amount: number | null;
+  decimals: number;
+};
+
 export type Balances = {
-  algo: number | null;
-  usdc: number | null;
+  holdings: Holding[];
   error?: string;
 };
 
-function microToAlgo(micro: number | bigint): number {
-  return Number(micro) / 1_000_000;
+type AlgodAccount = {
+  amount?: number | bigint;
+  assets?: { 'asset-id': number; amount: number | bigint }[];
+};
+
+type AlgodAsset = {
+  params?: {
+    decimals?: number;
+    name?: string;
+    'unit-name'?: string;
+  };
+};
+
+const algoHolding = (amount: number | null): Holding => ({
+  id: 0,
+  unit: 'ALGO',
+  amount,
+  decimals: 6,
+});
+
+export const emptyBalances = (): Balances => ({
+  holdings: [algoHolding(null)],
+});
+
+const paramsCache = new Map<number, { unit: string; decimals: number }>([
+  [USDC_ASA_ID, { unit: 'USDC', decimals: 6 }],
+]);
+
+function toDecimal(amount: number | bigint, decimals: number): number {
+  return Number(amount) / 10 ** decimals;
 }
 
+async function assetMeta(id: number): Promise<{ unit: string; decimals: number }> {
+  const cached = paramsCache.get(id);
+  if (cached) return cached;
+
+  try {
+    const res = await fetch(`${ALGOD_URL}/v2/assets/${id}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) {
+      const fallback = { unit: String(id), decimals: 0 };
+      paramsCache.set(id, fallback);
+      return fallback;
+    }
+    const body = (await res.json()) as AlgodAsset;
+    const unit = body.params?.['unit-name'] || body.params?.name || String(id);
+    const meta = { unit, decimals: body.params?.decimals ?? 0 };
+    paramsCache.set(id, meta);
+    return meta;
+  } catch {
+    return { unit: String(id), decimals: 0 };
+  }
+}
+
+/** Account + every opted-in ASA from algod. No indexer, no junk filter. */
 export async function fetchBalances(address: string): Promise<Balances> {
   try {
     const res = await fetch(`${ALGOD_URL}/v2/accounts/${address}`, {
       headers: { Accept: 'application/json' },
     });
     if (res.status === 404) {
-      return { algo: 0, usdc: 0 };
+      return { holdings: [algoHolding(0)] };
     }
     if (!res.ok) {
-      return { algo: null, usdc: null, error: `algod ${res.status}` };
+      return { holdings: [], error: `algod ${res.status}` };
     }
-    const body = (await res.json()) as {
-      amount?: number | bigint;
-      assets?: { 'asset-id': number; amount: number | bigint }[];
-    };
-    const usdc = body.assets?.find((a) => a['asset-id'] === USDC_ASA_ID);
+    const body = (await res.json()) as AlgodAccount;
+    const assets = body.assets ?? [];
+    const metas = await Promise.all(assets.map((a) => assetMeta(a['asset-id'])));
     return {
-      algo: microToAlgo(body.amount ?? 0),
-      usdc: usdc ? microToAlgo(usdc.amount) : 0,
+      holdings: [
+        algoHolding(toDecimal(body.amount ?? 0, 6)),
+        ...assets.map((a, i) => ({
+          id: a['asset-id'],
+          unit: metas[i].unit,
+          amount: toDecimal(a.amount, metas[i].decimals),
+          decimals: metas[i].decimals,
+        })),
+      ],
     };
   } catch {
-    return { algo: null, usdc: null, error: 'offline' };
+    return { holdings: [], error: 'offline' };
   }
 }
 
@@ -42,6 +107,12 @@ export function formatAmount(value: number | null, digits = 4): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: digits,
   });
+}
+
+export function fractionDigits(holding: Holding): number {
+  if (holding.id === 0) return 4;
+  if (holding.id === USDC_ASA_ID) return 2;
+  return Math.min(holding.decimals, 6);
 }
 
 export function truncateAddress(address: string): string {

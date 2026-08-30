@@ -1,12 +1,13 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SittingCube } from '@/components/SittingCube';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { useProvider } from '@/hooks/useProvider';
+import { useWalletBalances } from '@/hooks/useWalletBalances';
 import { algorandAddressFromKey, findWalletAccount } from '@/lib/keystore/wallet-account';
-import { fetchBalances, formatAmount, truncateAddress, type Balances } from '@/lib/algorand/balances';
+import { formatAmount, fractionDigits, truncateAddress } from '@/lib/algorand/balances';
 import { colors, fonts } from '@/lib/theme';
 import { Redirect } from 'expo-router';
 
@@ -16,18 +17,7 @@ export default function Home() {
   const wallet = findWalletAccount(accounts, keys);
   const address = wallet ? algorandAddressFromKey(wallet.key) : '';
   const [copied, setCopied] = React.useState(false);
-  const [balances, setBalances] = React.useState<Balances>({ algo: null, usdc: null });
-
-  React.useEffect(() => {
-    if (!address) return;
-    let cancelled = false;
-    fetchBalances(address).then((next) => {
-      if (!cancelled) setBalances(next);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [address]);
+  const balances = useWalletBalances(address);
 
   if (!wallet || !address) {
     if (keys.length === 0) return <Redirect href="/onboarding" />;
@@ -41,7 +31,10 @@ export default function Home() {
   };
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top + 36, paddingBottom: insets.bottom + 24 }]}>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={[styles.screen, { paddingTop: insets.top + 36, paddingBottom: insets.bottom + 24 }]}
+    >
       <SittingCube size={140} />
 
       <Pressable onPress={onCopy} accessibilityRole="button" accessibilityLabel="Copy address">
@@ -49,13 +42,16 @@ export default function Home() {
       </Pressable>
 
       <View style={styles.balances}>
-        <Row label="ALGO" value={formatAmount(balances.algo)} />
-        <View style={styles.rule} />
-        <Row label="USDC" value={formatAmount(balances.usdc, 2)} />
+        {balances.holdings.map((holding, i) => (
+          <React.Fragment key={holding.id}>
+            {i > 0 ? <View style={styles.rule} /> : null}
+            <Row label={holding.unit} value={formatAmount(holding.amount, fractionDigits(holding))} />
+          </React.Fragment>
+        ))}
       </View>
 
       {balances.error ? <Text style={styles.error}>couldn’t load balances</Text> : null}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -69,8 +65,12 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  scroll: {
     flex: 1,
+    backgroundColor: colors.bg,
+  },
+  screen: {
+    flexGrow: 1,
     backgroundColor: colors.bg,
     alignItems: 'center',
     paddingHorizontal: 28,
