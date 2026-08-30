@@ -18,6 +18,7 @@ import { accountsStore } from '@/stores/accounts';
 import { accountHooks, keyStoreHooks } from '@/stores/before-after';
 import { keyStore } from '@/stores/keystore';
 import { colors } from '@/lib/theme';
+import { sheetListeners, sheetScreenOptions } from '@/lib/motion/sheet';
 
 // Ensure install() ran even if a test imports this module without index.js.
 install();
@@ -58,9 +59,9 @@ function RootNavigation({ ready }: { ready: boolean }) {
       <Stack.Screen name="index" />
       <Stack.Screen name="onboarding" />
       <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="swap" />
-      <Stack.Screen name="send" />
-      <Stack.Screen name="receive" />
+      <Stack.Screen name="swap" options={sheetScreenOptions} listeners={sheetListeners} />
+      <Stack.Screen name="send" options={sheetScreenOptions} listeners={sheetListeners} />
+      <Stack.Screen name="receive" options={sheetScreenOptions} listeners={sheetListeners} />
     </Stack>
   );
 }

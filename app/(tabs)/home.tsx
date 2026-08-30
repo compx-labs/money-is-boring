@@ -1,8 +1,9 @@
 import React, { type ComponentProps } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { HapticPressable } from '@/components/HapticPressable';
 import { SittingCube } from '@/components/SittingCube';
 import { RollingNumber } from '@/components/RollingNumber';
 import { LoadingScreen } from '@/components/LoadingScreen';
@@ -32,14 +33,14 @@ function CircleButton({
   onPress: () => void;
 }) {
   return (
-    <Pressable
+    <HapticPressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
       style={({ pressed }) => [styles.circle, pressed && styles.circlePressed]}
     >
       <Ionicons name={icon} size={24} color={colors.buttonText} />
-    </Pressable>
+    </HapticPressable>
   );
 }
 
@@ -77,7 +78,7 @@ export default function Home() {
   return (
     <View style={styles.root}>
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <Pressable
+        <HapticPressable
           onPress={onCopy}
           accessibilityRole="button"
           accessibilityLabel="Wallet address"
@@ -87,7 +88,7 @@ export default function Home() {
             {copied ? 'copied' : truncateAddress(address, 4)}
           </Text>
           <Ionicons name="chevron-down" size={21} color={colors.muted} />
-        </Pressable>
+        </HapticPressable>
       </View>
 
       <ScrollView

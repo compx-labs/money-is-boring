@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { HapticPressable } from '@/components/HapticPressable';
 import { colors, fonts } from '@/lib/theme';
 
 export function ComingSoonScreen({ title }: { title: string }) {
@@ -9,9 +10,9 @@ export function ComingSoonScreen({ title }: { title: string }) {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 24 }]}>
-      <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
+      <HapticPressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
         <Text style={styles.back}>home</Text>
-      </Pressable>
+      </HapticPressable>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.hint}>coming soon.</Text>
     </View>

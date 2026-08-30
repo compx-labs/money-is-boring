@@ -1,7 +1,8 @@
 import React from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { HapticPressable } from '@/components/HapticPressable';
 import { SittingCube } from '@/components/SittingCube';
 import { useProvider } from '@/hooks/useProvider';
 import { useWalletSetup } from '@/hooks/useWalletSetup';
@@ -42,7 +43,7 @@ export default function Onboarding() {
       </View>
 
       <View style={styles.actions}>
-        <Pressable
+        <HapticPressable
           onPress={onCreate}
           disabled={busy}
           accessibilityRole="button"
@@ -54,7 +55,7 @@ export default function Onboarding() {
           ]}
         >
           <Text style={styles.buttonLabel}>{busy ? 'creating…' : 'Create with passkey'}</Text>
-        </Pressable>
+        </HapticPressable>
         <Text style={styles.hint}>
           A second passkey / iCloud restore comes later. This device holds the key.
         </Text>

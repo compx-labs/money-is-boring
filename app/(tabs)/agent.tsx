@@ -3,7 +3,6 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +11,7 @@ import {
 } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { HapticPressable } from '@/components/HapticPressable';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { useProvider } from '@/hooks/useProvider';
 import { useWalletBalances } from '@/hooks/useWalletBalances';
@@ -118,7 +118,7 @@ export default function Agent() {
             style={styles.input}
             accessibilityLabel="Agent message"
           />
-          <Pressable
+          <HapticPressable
             onPress={onSend}
             disabled={!!busy || !draft.trim()}
             accessibilityRole="button"
@@ -130,7 +130,7 @@ export default function Agent() {
             ]}
           >
             <Text style={styles.sendLabel}>send</Text>
-          </Pressable>
+          </HapticPressable>
         </View>
       </View>
     </KeyboardAvoidingView>

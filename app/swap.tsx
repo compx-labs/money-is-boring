@@ -3,7 +3,6 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +11,7 @@ import {
 } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { HapticPressable } from '@/components/HapticPressable';
 import { RollingNumber } from '@/components/RollingNumber';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { useProvider } from '@/hooks/useProvider';
@@ -149,17 +149,17 @@ export default function Swap() {
         contentContainerStyle={[styles.screen, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}
         keyboardShouldPersistTaps="handled"
       >
-        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
+        <HapticPressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
           <Text style={styles.back}>home</Text>
-        </Pressable>
+        </HapticPressable>
 
         <Text style={styles.title}>swap</Text>
 
         <View style={styles.card}>
           <Text style={styles.label}>from</Text>
-          <Pressable onPress={() => pick(fromId, toId, setFromId)} accessibilityRole="button">
+          <HapticPressable onPress={() => pick(fromId, toId, setFromId)} accessibilityRole="button">
             <Text style={styles.asset}>{fromAsset?.unit ?? 'ALGO'}</Text>
-          </Pressable>
+          </HapticPressable>
           <TextInput
             value={amount}
             onChangeText={setAmount}
@@ -175,15 +175,15 @@ export default function Swap() {
           </View>
         </View>
 
-        <Pressable onPress={invert} accessibilityRole="button" accessibilityLabel="Swap direction" style={styles.flip}>
+        <HapticPressable onPress={invert} accessibilityRole="button" accessibilityLabel="Swap direction" style={styles.flip}>
           <Text style={styles.flipLabel}>↕</Text>
-        </Pressable>
+        </HapticPressable>
 
         <View style={styles.card}>
           <Text style={styles.label}>to</Text>
-          <Pressable onPress={() => pick(toId, fromId, setToId)} accessibilityRole="button">
+          <HapticPressable onPress={() => pick(toId, fromId, setToId)} accessibilityRole="button">
             <Text style={styles.asset}>{outLabel}</Text>
-          </Pressable>
+          </HapticPressable>
           <RollingNumber
             value={quoteValue}
             format={formatQuotedAmount}
@@ -198,7 +198,7 @@ export default function Swap() {
         <Text style={styles.meta}>Hay router · 1% slip</Text>
         {quoteError ? <Text style={styles.error}>{quoteError}</Text> : null}
 
-        <Pressable
+        <HapticPressable
           onPress={onSwap}
           disabled={!quote || !!busy}
           accessibilityRole="button"
@@ -210,7 +210,7 @@ export default function Swap() {
           ]}
         >
           <Text style={styles.buttonLabel}>{busy || 'swap'}</Text>
-        </Pressable>
+        </HapticPressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );

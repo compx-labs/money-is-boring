@@ -7,8 +7,9 @@ import {
   type MaterialTopTabNavigationOptions,
 } from '@react-navigation/material-top-tabs';
 import { type ParamListBase, type TabNavigationState } from '@react-navigation/native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { HapticPressable } from '@/components/HapticPressable';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { useProvider } from '@/hooks/useProvider';
 import { findWalletAccount } from '@/lib/keystore/wallet-account';
@@ -35,7 +36,7 @@ function BottomTabBar({ state, descriptors, jumpTo, navigation }: MaterialTopTab
         const label = options.title ?? route.name;
 
         return (
-          <Pressable
+          <HapticPressable
             key={route.key}
             onPress={() => {
               const event = navigation.emit({
@@ -52,7 +53,7 @@ function BottomTabBar({ state, descriptors, jumpTo, navigation }: MaterialTopTab
           >
             {options.tabBarIcon?.({ focused, color })}
             <Text style={[styles.tabLabel, { color }]}>{label}</Text>
-          </Pressable>
+          </HapticPressable>
         );
       })}
     </View>
