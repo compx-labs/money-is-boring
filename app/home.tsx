@@ -7,7 +7,7 @@ import { LoadingScreen } from '@/components/LoadingScreen';
 import { useProvider } from '@/hooks/useProvider';
 import { algorandAddressFromKey, findWalletAccount } from '@/lib/keystore/wallet-account';
 import { fetchBalances, formatAmount, truncateAddress, type Balances } from '@/lib/algorand/balances';
-import { colors } from '@/lib/theme';
+import { colors, fonts } from '@/lib/theme';
 import { Redirect } from 'expo-router';
 
 export default function Home() {
@@ -78,8 +78,9 @@ const styles = StyleSheet.create({
   },
   address: {
     color: colors.muted,
-    fontSize: 15,
-    letterSpacing: 0.6,
+    fontFamily: fonts.regular,
+    fontSize: 30,
+    letterSpacing: 1.2,
     fontVariant: ['tabular-nums'],
   },
   balances: {
@@ -93,17 +94,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 24,
   },
   rowLabel: {
     color: colors.muted,
-    fontSize: 14,
-    letterSpacing: 1,
+    fontFamily: fonts.regular,
+    fontSize: 28,
+    letterSpacing: 2,
   },
   rowValue: {
     color: colors.text,
-    fontSize: 20,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
+    fontSize: 40,
     fontVariant: ['tabular-nums'],
   },
   rule: {
@@ -112,6 +114,7 @@ const styles = StyleSheet.create({
   },
   error: {
     color: colors.muted,
-    fontSize: 13,
+    fontFamily: fonts.regular,
+    fontSize: 26,
   },
 });

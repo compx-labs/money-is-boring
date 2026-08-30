@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SittingCube } from '@/components/SittingCube';
 import { useProvider } from '@/hooks/useProvider';
 import { useWalletSetup } from '@/hooks/useWalletSetup';
-import { colors } from '@/lib/theme';
+import { colors, fonts } from '@/lib/theme';
 
 export default function Onboarding() {
   const router = useRouter();
@@ -77,9 +77,9 @@ const styles = StyleSheet.create({
   },
   tagline: {
     color: colors.text,
-    fontSize: 22,
-    fontWeight: '600',
-    letterSpacing: 0.4,
+    fontFamily: fonts.semibold,
+    fontSize: 44,
+    letterSpacing: 0.8,
   },
   actions: {
     gap: 16,
@@ -87,7 +87,9 @@ const styles = StyleSheet.create({
   button: {
     backgroundColor: colors.button,
     borderRadius: 8,
-    height: 48,
+    minHeight: 80,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -99,13 +101,14 @@ const styles = StyleSheet.create({
   },
   buttonLabel: {
     color: colors.buttonText,
-    fontSize: 16,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
+    fontSize: 32,
   },
   hint: {
     color: colors.muted,
-    fontSize: 13,
-    lineHeight: 18,
+    fontFamily: fonts.regular,
+    fontSize: 26,
+    lineHeight: 36,
     textAlign: 'center',
   },
 });

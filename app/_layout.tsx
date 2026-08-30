@@ -2,6 +2,12 @@ import { install } from 'react-native-quick-crypto';
 import { subtle } from 'react-native-quick-crypto';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useFonts } from 'expo-font';
+import {
+  Nunito_400Regular,
+  Nunito_600SemiBold,
+  Nunito_700Bold,
+} from '@expo-google-fonts/nunito';
 import React from 'react';
 import { useStore } from '@tanstack/react-store';
 import { LoadingScreen } from '@/components/LoadingScreen';
@@ -55,6 +61,11 @@ function RootNavigation({ ready }: { ready: boolean }) {
 export default function RootLayout() {
   const status = useStore(keyStore, (state) => state.status);
   const [hasLoadedOnce, setHasLoadedOnce] = React.useState(false);
+  const [fontsLoaded, fontError] = useFonts({
+    Nunito_400Regular,
+    Nunito_600SemiBold,
+    Nunito_700Bold,
+  });
 
   React.useEffect(() => {
     bootstrap().catch(() => {
@@ -67,10 +78,12 @@ export default function RootLayout() {
     if (ready) setHasLoadedOnce(true);
   }, [ready]);
 
+  const fontsReady = fontsLoaded || fontError != null;
+
   return (
     <WalletProvider provider={provider}>
       <StatusBar style="dark" />
-      <RootNavigation ready={hasLoadedOnce} />
+      <RootNavigation ready={hasLoadedOnce && fontsReady} />
     </WalletProvider>
   );
 }

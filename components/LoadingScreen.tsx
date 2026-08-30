@@ -1,5 +1,5 @@
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { colors } from '@/lib/theme';
+import { colors, fonts } from '@/lib/theme';
 
 export function LoadingScreen() {
   return (
@@ -20,8 +20,9 @@ const styles = StyleSheet.create({
   },
   label: {
     color: colors.muted,
-    fontSize: 14,
-    letterSpacing: 2,
+    fontFamily: fonts.regular,
+    fontSize: 28,
+    letterSpacing: 4,
     textTransform: 'uppercase',
   },
 });
