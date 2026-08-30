@@ -13,11 +13,13 @@ import { Redirect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HapticPressable } from '@/components/HapticPressable';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { SpringInsert } from '@/components/SpringInsert';
 import { useProvider } from '@/hooks/useProvider';
 import { useWalletBalances } from '@/hooks/useWalletBalances';
 import { algorandAddressFromKey, findWalletAccount } from '@/lib/keystore/wallet-account';
 import { fromBaseUnits } from '@/lib/algorand/balances';
 import { sendAgentMessage, type ChatTurn } from '@/lib/zerosignal/chat';
+import { prepareLayoutSpring } from '@/lib/motion/layout';
 import { colors, fonts, USDC_ASA_ID } from '@/lib/theme';
 
 type Bubble = ChatTurn & { id: string };
@@ -56,6 +58,7 @@ export default function Agent() {
     const user: Bubble = { id: `u-${Date.now()}`, role: 'user', text };
     const history: ChatTurn[] = [...messages, user].map(({ role, text: t }) => ({ role, text: t }));
     const assistantId = `a-${Date.now()}`;
+    prepareLayoutSpring();
     setDraft('');
     setMessages((prev) => [...prev, user, { id: assistantId, role: 'assistant', text: '' }]);
     setBusy('finding a node');
@@ -70,12 +73,14 @@ export default function Agent() {
           setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, text: delta } : m)));
         },
       });
+      prepareLayoutSpring();
       setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, text: reply.text } : m)));
       const zs = reply.chargedMicro > 0 ? `ZeroSignal · ${fromBaseUnits(String(reply.chargedMicro), 6)} USDC` : '';
       const canix =
         reply.canixMicro > 0n ? `Canix · ${fromBaseUnits(String(reply.canixMicro), 6)} USDC` : '';
       setResult([zs, canix].filter(Boolean).join(' · '));
     } catch (e) {
+      prepareLayoutSpring();
       setMessages((prev) => prev.filter((m) => m.id !== assistantId && m.id !== user.id));
       setDraft(text);
       Alert.alert('Agent failed', e instanceof Error ? e.message : 'Unknown error');
@@ -96,15 +101,23 @@ export default function Agent() {
           contentContainerStyle={styles.chatContent}
           keyboardShouldPersistTaps="handled"
         >
-          {messages.map((m) =>
-            m.text || m.role === 'user' ? (
-              <View key={m.id} style={[styles.bubble, m.role === 'user' ? styles.user : styles.assistant]}>
+          {messages.map((m) => (
+            <SpringInsert key={m.id}>
+              <View style={[styles.bubble, m.role === 'user' ? styles.user : styles.assistant]}>
                 <Text style={m.role === 'user' ? styles.userText : styles.assistantText}>{m.text || '…'}</Text>
               </View>
-            ) : null,
-          )}
-          {busy ? <Text style={styles.meta}>{busy}</Text> : null}
-          {result ? <Text style={styles.meta}>{result}</Text> : null}
+            </SpringInsert>
+          ))}
+          {busy ? (
+            <SpringInsert key="busy">
+              <Text style={styles.meta}>{busy}</Text>
+            </SpringInsert>
+          ) : null}
+          {result ? (
+            <SpringInsert key="result">
+              <Text style={styles.meta}>{result}</Text>
+            </SpringInsert>
+          ) : null}
         </ScrollView>
 
         <View style={styles.composer}>

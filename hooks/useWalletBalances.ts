@@ -5,6 +5,7 @@ import {
   fetchBalances,
   type Balances,
 } from '@/lib/algorand/balances';
+import { prepareLayoutSpring } from '@/lib/motion/layout';
 
 /** Poll algod every 10s for all holdings. Stops when the screen unmounts. */
 export function useWalletBalances(address: string): Balances {
@@ -25,6 +26,9 @@ export function useWalletBalances(address: string): Balances {
         setBalances((prev) => {
           if (next.error && prev.holdings.length > 0) {
             return { holdings: prev.holdings, error: next.error };
+          }
+          if (next.holdings.length !== prev.holdings.length) {
+            prepareLayoutSpring();
           }
           return next;
         });

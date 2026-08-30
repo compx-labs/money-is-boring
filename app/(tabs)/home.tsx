@@ -8,6 +8,7 @@ import { MorphIcon } from '@/components/MorphIcon';
 import { SittingCube } from '@/components/SittingCube';
 import { RollingNumber } from '@/components/RollingNumber';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { SpringInsert } from '@/components/SpringInsert';
 import { useProvider } from '@/hooks/useProvider';
 import { useWalletBalances } from '@/hooks/useWalletBalances';
 import { algorandAddressFromKey, findWalletAccount } from '@/lib/keystore/wallet-account';
@@ -68,6 +69,13 @@ export default function Home() {
   const [copied, setCopied] = React.useState(false);
   const [sent, setSent] = React.useState(false);
   const balances = useWalletBalances(address);
+  const seenHoldings = React.useRef<Set<number> | null>(null);
+
+  React.useLayoutEffect(() => {
+    if (seenHoldings.current === null) {
+      seenHoldings.current = new Set(balances.holdings.map((h) => h.id));
+    }
+  }, [balances.holdings]);
 
   React.useEffect(() => {
     if (!copied) return;
@@ -139,7 +147,12 @@ export default function Home() {
 
         <View style={styles.balances}>
           {balances.holdings.map((holding) => (
-            <Row key={holding.id} label={holding.unit} value={holding.amount} />
+            <SpringInsert
+              key={holding.id}
+              active={seenHoldings.current !== null && !seenHoldings.current.has(holding.id)}
+            >
+              <Row label={holding.unit} value={holding.amount} />
+            </SpringInsert>
           ))}
         </View>
 

@@ -1,21 +1,15 @@
 import { colors } from '@/lib/theme';
-import { thud } from '@/lib/motion/haptics';
+import { LAYOUT_DURATION_MS } from '@/lib/motion/layout';
 
-/** Native iOS/Android bottom card. Reused by swap, send, and receive. */
+/**
+ * Transparent host so SheetScaffold can spring the card with the shared
+ * layout spring. Native stack animation stays off — we move the card.
+ */
 export const sheetScreenOptions = {
   headerShown: false,
-  presentation: 'formSheet' as const,
-  animation: 'slide_from_bottom' as const,
-  sheetGrabberVisible: true,
-  sheetAllowedDetents: [1] as number[],
-  sheetCornerRadius: 24,
-  contentStyle: { backgroundColor: colors.bg },
-};
-
-/** Soft thud when the card finishes sliding up. */
-export const sheetListeners = {
-  transitionEnd: (e: { data: { closing: boolean } }) => {
-    if (e.data.closing) return;
-    thud();
-  },
+  presentation: 'transparentModal' as const,
+  animation: 'none' as const,
+  animationDuration: LAYOUT_DURATION_MS,
+  gestureEnabled: false,
+  contentStyle: { backgroundColor: 'transparent' },
 };

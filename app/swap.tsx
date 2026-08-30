@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HapticPressable } from '@/components/HapticPressable';
 import { RollingNumber } from '@/components/RollingNumber';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { SheetScaffold, useSheetDismiss } from '@/components/SheetScaffold';
 import { useProvider } from '@/hooks/useProvider';
 import { useWalletBalances } from '@/hooks/useWalletBalances';
 import { algorandAddressFromKey, findWalletAccount } from '@/lib/keystore/wallet-account';
@@ -40,6 +41,15 @@ function mergeAssets(holdings: Holding[]): Holding[] {
   byId.set(USDC_ASA_ID, { id: USDC_ASA_ID, unit: 'USDC', amount: 0, decimals: 6 });
   for (const h of holdings) byId.set(h.id, h);
   return [...byId.values()];
+}
+
+function SwapHomeBack() {
+  const dismiss = useSheetDismiss();
+  return (
+    <HapticPressable onPress={dismiss} accessibilityRole="button" accessibilityLabel="Back">
+      <Text style={styles.back}>home</Text>
+    </HapticPressable>
+  );
 }
 
 export default function Swap() {
@@ -143,72 +153,72 @@ export default function Swap() {
   );
 
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[styles.screen, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}
-        keyboardShouldPersistTaps="handled"
-      >
-        <HapticPressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
-          <Text style={styles.back}>home</Text>
-        </HapticPressable>
-
-        <Text style={styles.title}>swap</Text>
-
-        <View style={styles.card}>
-          <Text style={styles.label}>from</Text>
-          <HapticPressable onPress={() => pick(fromId, toId, setFromId)} accessibilityRole="button">
-            <Text style={styles.asset}>{fromAsset?.unit ?? 'ALGO'}</Text>
-          </HapticPressable>
-          <TextInput
-            value={amount}
-            onChangeText={setAmount}
-            keyboardType="decimal-pad"
-            placeholder="0"
-            placeholderTextColor={colors.line}
-            style={styles.amount}
-            accessibilityLabel="Swap amount"
-          />
-          <View style={styles.balanceRow}>
-            <RollingNumber value={fromAsset?.amount ?? 0} format={formatAmount} style={styles.balance} />
-            <Text style={styles.balance}> {fromAsset?.unit}</Text>
-          </View>
-        </View>
-
-        <HapticPressable onPress={invert} accessibilityRole="button" accessibilityLabel="Swap direction" style={styles.flip}>
-          <Text style={styles.flipLabel}>↕</Text>
-        </HapticPressable>
-
-        <View style={styles.card}>
-          <Text style={styles.label}>to</Text>
-          <HapticPressable onPress={() => pick(toId, fromId, setToId)} accessibilityRole="button">
-            <Text style={styles.asset}>{outLabel}</Text>
-          </HapticPressable>
-          <RollingNumber
-            value={quoteValue}
-            format={formatQuotedAmount}
-            placeholder={quoting ? '…' : '—'}
-            style={styles.quoted}
-          />
-        </View>
-
-        {quote?.userPriceImpact != null ? (
-          <Text style={styles.meta}>impact {quote.userPriceImpact.toFixed(2)}%</Text>
-        ) : null}
-        <Text style={styles.meta}>Hay router · 1% slip</Text>
-        {quoteError ? <Text style={styles.error}>{quoteError}</Text> : null}
-
-        <HapticPressable
-          onPress={onSwap}
-          disabled={!quote || !!busy}
-          accessibilityRole="button"
-          accessibilityLabel="Confirm swap"
-          style={[styles.button, (!quote || !!busy) && styles.buttonBusy]}
+    <SheetScaffold>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[styles.screen, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}
+          keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.buttonLabel}>{busy || 'swap'}</Text>
-        </HapticPressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          <SwapHomeBack />
+
+          <Text style={styles.title}>swap</Text>
+
+          <View style={styles.card}>
+            <Text style={styles.label}>from</Text>
+            <HapticPressable onPress={() => pick(fromId, toId, setFromId)} accessibilityRole="button">
+              <Text style={styles.asset}>{fromAsset?.unit ?? 'ALGO'}</Text>
+            </HapticPressable>
+            <TextInput
+              value={amount}
+              onChangeText={setAmount}
+              keyboardType="decimal-pad"
+              placeholder="0"
+              placeholderTextColor={colors.line}
+              style={styles.amount}
+              accessibilityLabel="Swap amount"
+            />
+            <View style={styles.balanceRow}>
+              <RollingNumber value={fromAsset?.amount ?? 0} format={formatAmount} style={styles.balance} />
+              <Text style={styles.balance}> {fromAsset?.unit}</Text>
+            </View>
+          </View>
+
+          <HapticPressable onPress={invert} accessibilityRole="button" accessibilityLabel="Swap direction" style={styles.flip}>
+            <Text style={styles.flipLabel}>↕</Text>
+          </HapticPressable>
+
+          <View style={styles.card}>
+            <Text style={styles.label}>to</Text>
+            <HapticPressable onPress={() => pick(toId, fromId, setToId)} accessibilityRole="button">
+              <Text style={styles.asset}>{outLabel}</Text>
+            </HapticPressable>
+            <RollingNumber
+              value={quoteValue}
+              format={formatQuotedAmount}
+              placeholder={quoting ? '…' : '—'}
+              style={styles.quoted}
+            />
+          </View>
+
+          {quote?.userPriceImpact != null ? (
+            <Text style={styles.meta}>impact {quote.userPriceImpact.toFixed(2)}%</Text>
+          ) : null}
+          <Text style={styles.meta}>Hay router · 1% slip</Text>
+          {quoteError ? <Text style={styles.error}>{quoteError}</Text> : null}
+
+          <HapticPressable
+            onPress={onSwap}
+            disabled={!quote || !!busy}
+            accessibilityRole="button"
+            accessibilityLabel="Confirm swap"
+            style={[styles.button, (!quote || !!busy) && styles.buttonBusy]}
+          >
+            <Text style={styles.buttonLabel}>{busy || 'swap'}</Text>
+          </HapticPressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SheetScaffold>
   );
 }
 
