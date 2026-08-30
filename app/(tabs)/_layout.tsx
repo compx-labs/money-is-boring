@@ -1,11 +1,5 @@
-import { Redirect, withLayoutContext } from 'expo-router';
-import {
-  createMaterialTopTabNavigator,
-  type MaterialTopTabBarProps,
-  type MaterialTopTabNavigationEventMap,
-  type MaterialTopTabNavigationOptions,
-} from '@react-navigation/material-top-tabs';
-import { type ParamListBase, type TabNavigationState } from '@react-navigation/native';
+import { Redirect, Tabs } from 'expo-router';
+import type { ComponentProps } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HapticPressable } from '@/components/HapticPressable';
@@ -15,16 +9,9 @@ import { useProvider } from '@/hooks/useProvider';
 import { findWalletAccount } from '@/lib/keystore/wallet-account';
 import { colors, fonts } from '@/lib/theme';
 
-const { Navigator } = createMaterialTopTabNavigator();
+type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
 
-const SwipeTabs = withLayoutContext<
-  MaterialTopTabNavigationOptions,
-  typeof Navigator,
-  TabNavigationState<ParamListBase>,
-  MaterialTopTabNavigationEventMap
->(Navigator);
-
-function BottomTabBar({ state, descriptors, jumpTo, navigation }: MaterialTopTabBarProps) {
+function BottomTabBar({ state, descriptors, navigation }: TabBarProps) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -44,14 +31,16 @@ function BottomTabBar({ state, descriptors, jumpTo, navigation }: MaterialTopTab
                 target: route.key,
                 canPreventDefault: true,
               });
-              if (!event.defaultPrevented) jumpTo(route.key);
+              if (!event.defaultPrevented) {
+                navigation.navigate(route.name, route.params);
+              }
             }}
             accessibilityRole="button"
             accessibilityState={{ selected: focused }}
             accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
             style={styles.tabItem}
           >
-            {options.tabBarIcon?.({ focused, color })}
+            {options.tabBarIcon?.({ focused, color, size: 24 })}
             <Text style={[styles.tabLabel, { color }]}>{label}</Text>
           </HapticPressable>
         );
@@ -68,18 +57,16 @@ export default function TabsLayout() {
   if (!wallet) return <LoadingScreen />;
 
   return (
-    <SwipeTabs
+    <Tabs
       initialRouteName="home"
-      tabBarPosition="bottom"
       tabBar={(props) => <BottomTabBar {...props} />}
       screenOptions={{
-        swipeEnabled: true,
-        animationEnabled: true,
+        headerShown: false,
         tabBarActiveTintColor: colors.text,
         tabBarInactiveTintColor: colors.muted,
       }}
     >
-      <SwipeTabs.Screen
+      <Tabs.Screen
         name="home"
         options={{
           title: 'Home',
@@ -93,7 +80,7 @@ export default function TabsLayout() {
           ),
         }}
       />
-      <SwipeTabs.Screen
+      <Tabs.Screen
         name="agent"
         options={{
           title: 'Agent',
@@ -107,7 +94,7 @@ export default function TabsLayout() {
           ),
         }}
       />
-      <SwipeTabs.Screen
+      <Tabs.Screen
         name="explore"
         options={{
           title: 'Explore',
@@ -121,7 +108,7 @@ export default function TabsLayout() {
           ),
         }}
       />
-    </SwipeTabs>
+    </Tabs>
   );
 }
 
