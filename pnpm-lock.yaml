@@ -34,7 +34,7 @@ importers:
       '@algorandfoundation/wallet-provider':
         specifier: 1.0.0-canary.5
         version: 1.0.0-canary.5
-      '@expo-google-fonts/fredoka':
+      '@expo-google-fonts/barlow-semi-condensed':
         specifier: ^0.4.1
         version: 0.4.1
       '@noble/ciphers':
@@ -720,8 +720,8 @@ packages:
     resolution: {integrity: sha512-XQsZgjm2EcVUiZQf11UBJQfmZeEmOW8DpI1gsFeln6w0ae0ii4dMQEQ0kjl6DspdWX1aGY1/loyXnP0JS06e/A==}
     engines: {node: '>=0.8.0'}
 
-  '@expo-google-fonts/fredoka@0.4.1':
-    resolution: {integrity: sha512-px3uHDidG1RI7mMAjfKQktK9yZoVn/Uvqgp1G/Zkd6ZN9flXFxhUoPDRZdcCj2knFvkKmlvOx96SD3j4fxq7ig==}
+  '@expo-google-fonts/barlow-semi-condensed@0.4.1':
+    resolution: {integrity: sha512-L22y4aj2diDuSFDYIAxmP+PwhdNThE0XDjCUL3GLa8H4Ag6SsRem5j7WFl9qvrrtXeSygW9Az5YsS2oOgXOBRA==}
 
   '@expo/cli@54.0.27':
     resolution: {integrity: sha512-BxKOr6e8wmUwhGSyEVKY+CHWgS3Cre9ibgx1QWcdCenKTVKAz62qGmYL51q0lCcKg6vQY+4Usw9RK5Il4ZFaIA==}
@@ -4383,7 +4383,7 @@ snapshots:
     dependencies:
       '@types/hammerjs': 2.0.46
 
-  '@expo-google-fonts/fredoka@0.4.1': {}
+  '@expo-google-fonts/barlow-semi-condensed@0.4.1': {}
 
   '@expo/cli@54.0.27(expo-router@6.0.24)(expo@54.0.37)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(typescript@5.8.3)':
     dependencies:

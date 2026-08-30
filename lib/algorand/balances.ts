@@ -1,3 +1,4 @@
+import { TOP_ASSETS } from '@/lib/algorand/assets';
 import { ALGOD_URL, USDC_ASA_ID } from '@/lib/theme';
 
 export const BALANCE_POLL_MS = 10_000;
@@ -38,9 +39,9 @@ export const emptyBalances = (): Balances => ({
   holdings: [algoHolding(null)],
 });
 
-const paramsCache = new Map<number, { unit: string; decimals: number }>([
-  [USDC_ASA_ID, { unit: 'USDC', decimals: 6 }],
-]);
+const paramsCache = new Map<number, { unit: string; decimals: number }>(
+  TOP_ASSETS.map((a) => [a.id, { unit: a.unit, decimals: a.decimals }]),
+);
 
 function toDecimal(amount: number | bigint, decimals: number): number {
   return Number(amount) / 10 ** decimals;

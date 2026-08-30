@@ -1,27 +1,44 @@
 import { Redirect, Tabs } from 'expo-router';
 import React, { type ComponentProps } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StyleSheet, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Chamfer } from '@/components/Chamfer';
 import { HapticPressable } from '@/components/HapticPressable';
-import { MorphIcon } from '@/components/MorphIcon';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { MorphIcon } from '@/components/MorphIcon';
 import { useProvider } from '@/hooks/useProvider';
 import { findWalletAccount } from '@/lib/keystore/wallet-account';
-import { colors, fonts } from '@/lib/theme';
+import { colors } from '@/lib/theme';
 
 type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
+type IconName = ComponentProps<typeof Ionicons>['name'];
 
-const BottomTabBar = React.memo(
-  function BottomTabBar({ state, descriptors, navigation }: TabBarProps) {
-    const insets = useSafeAreaInsets();
+const ICONS: Record<string, { on: IconName; off: IconName }> = {
+  home: { on: 'home', off: 'home-outline' },
+  agent: { on: 'chatbubbles', off: 'chatbubbles-outline' },
+  explore: { on: 'compass', off: 'compass-outline' },
+};
 
-    return (
-      <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+function BottomTabBar({ state, descriptors, navigation, insets }: TabBarProps) {
+  const bottom = Math.max(insets.bottom, 12);
+
+  return (
+    <View style={[styles.dock, { paddingBottom: bottom }]} pointerEvents="box-none">
+      <Chamfer
+        fill="#ffffff"
+        stroke={colors.button}
+        strokeWidth={2}
+        segments={state.routes.length}
+        activeSegment={state.index}
+        activeFill="rgba(255, 31, 143, 0.12)"
+        style={styles.barFace}
+        contentStyle={styles.bar}
+      >
         {state.routes.map((route, index) => {
           const focused = state.index === index;
           const { options } = descriptors[route.key];
-          const color = focused ? colors.text : colors.muted;
           const label = options.title ?? route.name;
+          const icons = ICONS[route.name] ?? ICONS.home;
 
           return (
             <HapticPressable
@@ -39,21 +56,24 @@ const BottomTabBar = React.memo(
               accessibilityRole="button"
               accessibilityState={{ selected: focused }}
               accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
-              style={styles.tabItem}
+              style={[styles.tab, focused && styles.tabActive]}
             >
-              {options.tabBarIcon?.({ focused, color, size: 24 })}
-              <Text style={[styles.tabLabel, { color }]}>{label}</Text>
+              <MorphIcon
+                name={focused ? icons.on : icons.off}
+                size={24}
+                color={colors.button}
+              />
             </HapticPressable>
           );
         })}
-      </View>
-    );
-  },
-  (prev, next) =>
-    prev.state.index === next.state.index &&
-    prev.state.key === next.state.key &&
-    prev.state.routes === next.state.routes,
-);
+      </Chamfer>
+    </View>
+  );
+}
+
+function renderTabBar(props: TabBarProps) {
+  return <BottomTabBar {...props} />;
+}
 
 export default function TabsLayout() {
   const { keys, accounts } = useProvider();
@@ -65,76 +85,45 @@ export default function TabsLayout() {
   return (
     <Tabs
       initialRouteName="home"
-      tabBar={(props) => <BottomTabBar {...props} />}
+      tabBar={renderTabBar}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.text,
-        tabBarInactiveTintColor: colors.muted,
+        sceneStyle: { backgroundColor: 'transparent' },
+        tabBarActiveTintColor: colors.button,
+        tabBarInactiveTintColor: colors.button,
       }}
     >
-      <Tabs.Screen
-        name="home"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, focused }) => (
-            <MorphIcon
-              name={focused ? 'home' : 'home-outline'}
-              size={24}
-              color={color}
-              bounce={focused}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="agent"
-        options={{
-          title: 'Agent',
-          tabBarIcon: ({ color, focused }) => (
-            <MorphIcon
-              name={focused ? 'chatbubbles' : 'chatbubbles-outline'}
-              size={24}
-              color={color}
-              bounce={focused}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color, focused }) => (
-            <MorphIcon
-              name={focused ? 'compass' : 'compass-outline'}
-              size={24}
-              color={color}
-              bounce={focused}
-            />
-          ),
-        }}
-      />
+      <Tabs.Screen name="home" options={{ title: 'Home' }} />
+      <Tabs.Screen name="agent" options={{ title: 'Agent' }} />
+      <Tabs.Screen name="explore" options={{ title: 'Explore' }} />
     </Tabs>
   );
 }
 
 const styles = StyleSheet.create({
-  tabBar: {
-    flexDirection: 'row',
-    width: '100%',
-    backgroundColor: colors.bg,
-    borderTopColor: colors.line,
-    borderTopWidth: StyleSheet.hairlineWidth,
+  dock: {
+    alignItems: 'center',
+    paddingHorizontal: 36,
+    paddingTop: 8,
+    backgroundColor: 'transparent',
   },
-  tabItem: {
+  barFace: {
+    width: '100%',
+    maxWidth: 360,
+    alignSelf: 'center',
+  },
+  bar: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  tab: {
     flex: 1,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 8,
-    gap: 2,
+    opacity: 0.4,
   },
-  tabLabel: {
-    fontFamily: fonts.semibold,
-    fontSize: 16,
+  tabActive: {
+    opacity: 1,
   },
 });

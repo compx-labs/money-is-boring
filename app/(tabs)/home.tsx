@@ -3,14 +3,19 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AccountMenu, type MenuAnchor } from '@/components/AccountMenu';
+import { Chamfer } from '@/components/Chamfer';
 import { HapticPressable } from '@/components/HapticPressable';
 import { MorphIcon } from '@/components/MorphIcon';
 import { SittingCube } from '@/components/SittingCube';
 import { RollingNumber } from '@/components/RollingNumber';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { SpringInsert } from '@/components/SpringInsert';
+import { AssetRow } from '@/components/AssetRow';
 import { useProvider } from '@/hooks/useProvider';
 import { useWalletBalances } from '@/hooks/useWalletBalances';
+import { useAsaIcons } from '@/hooks/useAsaIcons';
+import { useFiatTotal } from '@/hooks/useFiatTotal';
 import { algorandAddressFromKey, findWalletAccount } from '@/lib/keystore/wallet-account';
 import { truncateAddress } from '@/lib/algorand/balances';
 import { colors, fonts } from '@/lib/theme';
@@ -21,43 +26,56 @@ type IconName = ComponentProps<typeof Ionicons>['name'];
 
 const ICON_HOLD_MS = ICON_MORPH_MS + 280;
 
-function formatBalance(value: number): string {
+function formatFiat(value: number): string {
   return value.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
 }
 
-function CircleButton({
+function ActionButton({
   icon,
   label,
   onPress,
+  overlap = false,
 }: {
   icon: IconName;
   label: string;
   onPress: () => void;
+  overlap?: boolean;
 }) {
   return (
     <HapticPressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={styles.circle}
+      style={[styles.actionPress, overlap && styles.actionOverlap]}
     >
-      <MorphIcon name={icon} size={24} color={colors.buttonText} bounce={icon === 'checkmark'} />
+      <Chamfer fill={colors.button} style={styles.actionFace} contentStyle={styles.actionContent}>
+        <MorphIcon name={icon} size={24} color={colors.buttonText} bounce={icon === 'checkmark'} />
+      </Chamfer>
     </HapticPressable>
   );
 }
 
-function Row({ label, value }: { label: string; value: number | null }) {
+function OptInRow({ onPress }: { onPress: () => void }) {
   return (
-    <HapticPressable accessibilityRole="button" accessibilityLabel={label} style={styles.row}>
-      <View style={styles.rowInner}>
-        <Text style={styles.rowLabel}>{label}</Text>
-        <View style={styles.rowValuePill}>
-          <RollingNumber value={value} format={formatBalance} style={styles.rowValue} />
-        </View>
-      </View>
+    <HapticPressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Opt-in to more assets"
+      style={styles.rowPress}
+    >
+      <Chamfer
+        fill="none"
+        stroke={colors.button}
+        strokeWidth={2}
+        strokeDasharray="8 6"
+        style={styles.row}
+        contentStyle={styles.optInInner}
+      >
+        <Text style={styles.optInPlus}>+</Text>
+      </Chamfer>
     </HapticPressable>
   );
 }
@@ -70,7 +88,12 @@ export default function Home() {
   const address = wallet ? algorandAddressFromKey(wallet.key) : '';
   const [copied, setCopied] = React.useState(false);
   const [sent, setSent] = React.useState(false);
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const [menuAnchor, setMenuAnchor] = React.useState<MenuAnchor | null>(null);
+  const pillRef = React.useRef<View>(null);
   const balances = useWalletBalances(address);
+  const fiatTotal = useFiatTotal(balances.holdings);
+  const icons = useAsaIcons();
   const seenHoldings = React.useRef<Set<number> | null>(null);
 
   React.useLayoutEffect(() => {
@@ -101,6 +124,18 @@ export default function Home() {
     setCopied(true);
   };
 
+  const onOpenMenu = () => {
+    pillRef.current?.measureInWindow((x, y, width, height) => {
+      setMenuAnchor({ x, y, width, height });
+      setMenuOpen(true);
+    });
+  };
+
+  const onViewProfile = () => {
+    setMenuOpen(false);
+    router.push('/profile');
+  };
+
   const onSend = () => {
     setSent(true);
     router.push('/send');
@@ -109,37 +144,73 @@ export default function Home() {
   return (
     <View style={styles.root}>
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <HapticPressable
-          onPress={onCopy}
-          accessibilityRole="button"
-          accessibilityLabel={copied ? 'Copied address' : 'Copy address'}
-          style={styles.addressPill}
-        >
-          <Text style={styles.address} numberOfLines={1}>
-            {truncateAddress(address, 4)}
-          </Text>
-          <Ionicons name="chevron-down" size={21} color={colors.muted} />
-        </HapticPressable>
+        <View ref={pillRef} collapsable={false} style={styles.addressWrap}>
+          <HapticPressable
+            onPress={onOpenMenu}
+            onLongPress={onCopy}
+            accessibilityRole="button"
+            accessibilityLabel={copied ? 'Copied address' : 'Account menu'}
+            accessibilityHint="Opens account menu. Press and hold to copy address."
+          >
+            <Chamfer fill={colors.button} contentStyle={styles.addressInner}>
+              <Text style={styles.address} numberOfLines={1}>
+                {truncateAddress(address, 4)}
+              </Text>
+              <MorphIcon
+                name={copied ? 'checkmark' : menuOpen ? 'chevron-up' : 'chevron-down'}
+                size={18}
+                color={colors.buttonText}
+                bounce={copied}
+              />
+            </Chamfer>
+          </HapticPressable>
+        </View>
       </View>
+
+      <AccountMenu
+        visible={menuOpen}
+        anchor={menuAnchor}
+        onClose={() => setMenuOpen(false)}
+        onViewProfile={onViewProfile}
+      />
 
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.screen, { paddingBottom: 24 }]}
       >
-        <SittingCube size={140} />
+        <View style={styles.hero}>
+          <SittingCube size={140} />
+          <View
+            style={styles.fiat}
+            accessible
+            accessibilityRole="text"
+            accessibilityLabel={
+              fiatTotal == null ? 'Total loading' : `Total ${formatFiat(fiatTotal)} dollars`
+            }
+          >
+            <Text style={styles.fiatDollar}>$</Text>
+            <RollingNumber value={fiatTotal} format={formatFiat} style={styles.fiatAmount} />
+          </View>
+        </View>
 
         <View style={styles.actions}>
-          <CircleButton
+          <ActionButton
             icon="swap-horizontal"
             label="Swap"
             onPress={() => router.push('/swap')}
           />
-          <CircleButton
+          <ActionButton
             icon={sent ? 'checkmark' : 'arrow-up'}
             label="Send"
             onPress={onSend}
+            overlap
           />
-          <CircleButton icon="arrow-down" label="Receive" onPress={() => router.push('/receive')} />
+          <ActionButton
+            icon="arrow-down"
+            label="Receive"
+            onPress={() => router.push('/receive')}
+            overlap
+          />
         </View>
 
         <View style={styles.balances}>
@@ -148,9 +219,10 @@ export default function Home() {
               key={holding.id}
               active={seenHoldings.current !== null && !seenHoldings.current.has(holding.id)}
             >
-              <Row label={holding.unit} value={holding.amount} />
+              <AssetRow label={holding.unit} value={holding.amount} icon={icons.get(holding.id)} />
             </SpringInsert>
           ))}
+          <OptInRow onPress={() => router.push('/add-asset')} />
         </View>
 
         {balances.error ? <Text style={styles.error}>couldn’t load balances</Text> : null}
@@ -162,92 +234,108 @@ export default function Home() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: 'transparent',
   },
   header: {
     paddingHorizontal: 28,
     paddingBottom: 8,
     alignItems: 'flex-start',
   },
-  addressPill: {
+  addressWrap: {
+    maxWidth: '70%',
+  },
+  addressInner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: colors.bg,
-    borderColor: colors.line,
-    borderWidth: 2,
-    borderRadius: 999,
-    paddingHorizontal: 18,
+    paddingHorizontal: 30,
     paddingVertical: 9,
-    maxWidth: '70%',
   },
   address: {
-    color: colors.muted,
+    color: colors.buttonText,
     fontFamily: fonts.semibold,
-    fontSize: 21,
+    fontSize: 18,
     fontVariant: ['tabular-nums'],
   },
   scroll: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: 'transparent',
   },
   screen: {
     flexGrow: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: 'transparent',
     alignItems: 'center',
     paddingHorizontal: 28,
     paddingTop: 12,
     gap: 28,
   },
+  hero: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  fiat: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  fiatDollar: {
+    color: colors.button,
+    fontFamily: fonts.bold,
+    fontSize: 40,
+    lineHeight: 56,
+    marginRight: 2,
+    marginBottom: 4,
+  },
+  fiatAmount: {
+    color: colors.button,
+    fontFamily: fonts.bold,
+    fontSize: 56,
+    lineHeight: 64,
+    fontVariant: ['tabular-nums'],
+  },
   balances: {
+    alignSelf: 'stretch',
+    paddingHorizontal: 8,
+    gap: 10,
+  },
+  rowPress: {
     alignSelf: 'stretch',
   },
   row: {
     alignSelf: 'stretch',
   },
-  rowInner: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  optInInner: {
     minHeight: 40,
-  },
-  rowLabel: {
-    color: colors.muted,
-    fontFamily: fonts.semibold,
-    fontSize: 21,
-    lineHeight: 24,
-    letterSpacing: 2,
-    flexShrink: 1,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
-  rowValuePill: {
-    backgroundColor: colors.button,
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    height: 40,
-    justifyContent: 'center',
+    paddingVertical: 6,
     alignItems: 'center',
-    flexShrink: 0,
+    justifyContent: 'center',
   },
-  rowValue: {
-    color: colors.buttonText,
-    fontFamily: fonts.regular,
-    fontSize: 20,
-    lineHeight: 24,
-    fontVariant: ['tabular-nums'],
+  optInPlus: {
+    color: colors.button,
+    opacity: 0.5,
+    fontFamily: fonts.semibold,
+    fontSize: 28,
+    lineHeight: 32,
+    includeFontPadding: false,
   },
   actions: {
     alignSelf: 'stretch',
     flexDirection: 'row',
-    justifyContent: 'flex-start',
-    gap: 12,
   },
-  circle: {
-    width: 56,
+  actionPress: {
+    flex: 1,
+  },
+  actionOverlap: {
+    marginLeft: '-2%',
+  },
+  actionFace: {
     height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.button,
+    alignSelf: 'stretch',
+  },
+  actionContent: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },

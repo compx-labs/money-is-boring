@@ -1,16 +1,12 @@
 import React from 'react';
 import {
   Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HapticPressable } from '@/components/HapticPressable';
 import { RollingNumber } from '@/components/RollingNumber';
 import { LoadingScreen } from '@/components/LoadingScreen';
@@ -54,7 +50,6 @@ function SwapHomeBack() {
 
 export default function Swap() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { keys, accounts, key } = useProvider();
   const wallet = findWalletAccount(accounts, keys);
   const address = wallet ? algorandAddressFromKey(wallet.key) : '';
@@ -154,81 +149,74 @@ export default function Swap() {
 
   return (
     <SheetScaffold>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[styles.screen, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}
-          keyboardShouldPersistTaps="handled"
+      <View style={styles.screen}>
+        <SwapHomeBack />
+
+        <Text style={styles.title}>swap</Text>
+
+        <View style={styles.card}>
+          <Text style={styles.label}>from</Text>
+          <HapticPressable onPress={() => pick(fromId, toId, setFromId)} accessibilityRole="button">
+            <Text style={styles.asset}>{fromAsset?.unit ?? 'ALGO'}</Text>
+          </HapticPressable>
+          <TextInput
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="decimal-pad"
+            placeholder="0"
+            placeholderTextColor={colors.line}
+            style={styles.amount}
+            accessibilityLabel="Swap amount"
+          />
+          <View style={styles.balanceRow}>
+            <RollingNumber value={fromAsset?.amount ?? 0} format={formatAmount} style={styles.balance} />
+            <Text style={styles.balance}> {fromAsset?.unit}</Text>
+          </View>
+        </View>
+
+        <HapticPressable onPress={invert} accessibilityRole="button" accessibilityLabel="Swap direction" style={styles.flip}>
+          <Text style={styles.flipLabel}>↕</Text>
+        </HapticPressable>
+
+        <View style={styles.card}>
+          <Text style={styles.label}>to</Text>
+          <HapticPressable onPress={() => pick(toId, fromId, setToId)} accessibilityRole="button">
+            <Text style={styles.asset}>{outLabel}</Text>
+          </HapticPressable>
+          <RollingNumber
+            value={quoteValue}
+            format={formatQuotedAmount}
+            placeholder={quoting ? '…' : '—'}
+            style={styles.quoted}
+          />
+        </View>
+
+        {quote?.userPriceImpact != null ? (
+          <Text style={styles.meta}>impact {quote.userPriceImpact.toFixed(2)}%</Text>
+        ) : null}
+        <Text style={styles.meta}>Hay router · 1% slip</Text>
+        {quoteError ? <Text style={styles.error}>{quoteError}</Text> : null}
+
+        <HapticPressable
+          onPress={onSwap}
+          disabled={!quote || !!busy}
+          accessibilityRole="button"
+          accessibilityLabel="Confirm swap"
+          style={[styles.button, (!quote || !!busy) && styles.buttonBusy]}
         >
-          <SwapHomeBack />
-
-          <Text style={styles.title}>swap</Text>
-
-          <View style={styles.card}>
-            <Text style={styles.label}>from</Text>
-            <HapticPressable onPress={() => pick(fromId, toId, setFromId)} accessibilityRole="button">
-              <Text style={styles.asset}>{fromAsset?.unit ?? 'ALGO'}</Text>
-            </HapticPressable>
-            <TextInput
-              value={amount}
-              onChangeText={setAmount}
-              keyboardType="decimal-pad"
-              placeholder="0"
-              placeholderTextColor={colors.line}
-              style={styles.amount}
-              accessibilityLabel="Swap amount"
-            />
-            <View style={styles.balanceRow}>
-              <RollingNumber value={fromAsset?.amount ?? 0} format={formatAmount} style={styles.balance} />
-              <Text style={styles.balance}> {fromAsset?.unit}</Text>
-            </View>
-          </View>
-
-          <HapticPressable onPress={invert} accessibilityRole="button" accessibilityLabel="Swap direction" style={styles.flip}>
-            <Text style={styles.flipLabel}>↕</Text>
-          </HapticPressable>
-
-          <View style={styles.card}>
-            <Text style={styles.label}>to</Text>
-            <HapticPressable onPress={() => pick(toId, fromId, setToId)} accessibilityRole="button">
-              <Text style={styles.asset}>{outLabel}</Text>
-            </HapticPressable>
-            <RollingNumber
-              value={quoteValue}
-              format={formatQuotedAmount}
-              placeholder={quoting ? '…' : '—'}
-              style={styles.quoted}
-            />
-          </View>
-
-          {quote?.userPriceImpact != null ? (
-            <Text style={styles.meta}>impact {quote.userPriceImpact.toFixed(2)}%</Text>
-          ) : null}
-          <Text style={styles.meta}>Hay router · 1% slip</Text>
-          {quoteError ? <Text style={styles.error}>{quoteError}</Text> : null}
-
-          <HapticPressable
-            onPress={onSwap}
-            disabled={!quote || !!busy}
-            accessibilityRole="button"
-            accessibilityLabel="Confirm swap"
-            style={[styles.button, (!quote || !!busy) && styles.buttonBusy]}
-          >
-            <Text style={styles.buttonLabel}>{busy || 'swap'}</Text>
-          </HapticPressable>
-        </ScrollView>
-      </KeyboardAvoidingView>
+          <Text style={styles.buttonLabel}>{busy || 'swap'}</Text>
+        </HapticPressable>
+      </View>
     </SheetScaffold>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.bg },
-  scroll: { flex: 1, backgroundColor: colors.bg },
   screen: {
-    flexGrow: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: 'transparent',
     paddingHorizontal: 28,
+    paddingTop: 8,
+    paddingBottom: 24,
     gap: 20,
   },
   back: {

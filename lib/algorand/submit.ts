@@ -2,6 +2,7 @@ import {
   assignGroupID,
   decodeUnsignedTransaction,
   makeApplicationOptInTxnFromObject,
+  makeAssetTransferTxnWithSuggestedParamsFromObject,
   waitForConfirmation,
 } from 'algosdk';
 import type { KeyStoreAPI } from '@algorandfoundation/react-native-keystore';
@@ -61,6 +62,25 @@ export async function signHayGroup(
 
   if (!txid) throw new Error('Nothing for this device to sign');
   return { blobs, txid };
+}
+
+export async function signAndSubmitAssetOptIn(
+  store: Pick<KeyStoreAPI, 'sign'>,
+  keyId: string,
+  address: string,
+  assetId: number,
+): Promise<void> {
+  const client = algod();
+  const suggestedParams = await client.getTransactionParams().do();
+  const txn = makeAssetTransferTxnWithSuggestedParamsFromObject({
+    sender: address,
+    receiver: address,
+    amount: 0,
+    assetIndex: assetId,
+    suggestedParams,
+  });
+  const sig = await store.sign(keyId, txn.bytesToSign());
+  await submitSignedGroup([txn.attachSignature(address, sig)], txn.txID());
 }
 
 export async function signAndSubmitAppOptIns(

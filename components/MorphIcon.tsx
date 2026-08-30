@@ -29,6 +29,20 @@ export function MorphIcon({
   const prevBounce = React.useRef(bounce);
   const mounted = React.useRef(false);
   const [reduceMotion, setReduceMotion] = React.useState(false);
+  const morphing = name !== shown;
+
+  const outgoingOpacity = React.useRef(
+    progress.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+  ).current;
+  const incomingOpacity = React.useRef(
+    progress.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
+  ).current;
+  const outgoingScale = React.useRef(
+    progress.interpolate({ inputRange: [0, 1], outputRange: [1, 0.72] }),
+  ).current;
+  const incomingScale = React.useRef(
+    progress.interpolate({ inputRange: [0, 1], outputRange: [0.72, 1] }),
+  ).current;
 
   React.useEffect(() => {
     let alive = true;
@@ -42,11 +56,8 @@ export function MorphIcon({
     };
   }, []);
 
-  React.useEffect(() => {
-    if (name === shown) {
-      progress.setValue(1);
-      return;
-    }
+  React.useLayoutEffect(() => {
+    if (name === shown) return;
     if (reduceMotion) {
       setShown(name);
       progress.setValue(1);
@@ -59,17 +70,17 @@ export function MorphIcon({
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     });
-    motion.start(({ finished }) => {
-      if (finished) {
-        setShown(name);
-        progress.setValue(1);
-      }
+    let cancelled = false;
+    motion.start(() => {
+      if (cancelled) return;
+      setShown(name);
+      progress.setValue(1);
     });
     return () => {
+      cancelled = true;
       motion.stop();
-      progress.setValue(1);
     };
-  }, [name, progress, reduceMotion, shown]);
+  }, [name, shown, progress, reduceMotion]);
 
   React.useEffect(() => {
     if (!mounted.current) {
@@ -108,63 +119,25 @@ export function MorphIcon({
     };
   }, [bounce, bounceScale, reduceMotion]);
 
-  const incoming = name !== shown;
-  const outgoingOpacity = React.useMemo(
-    () =>
-      progress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [1, 0],
-      }),
-    [progress],
-  );
-  const incomingOpacity = React.useMemo(
-    () =>
-      progress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0, 1],
-      }),
-    [progress],
-  );
-  const outgoingScale = React.useMemo(
-    () =>
-      progress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [1, 0.72],
-      }),
-    [progress],
-  );
-  const incomingScale = React.useMemo(
-    () =>
-      progress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0.72, 1],
-      }),
-    [progress],
-  );
-
   return (
     <Animated.View style={{ transform: [{ scale: bounceScale }] }}>
-      <View style={{ width: size, height: size }}>
-        <Animated.View
-          style={[
-            styles.layer,
-            incoming
-              ? { opacity: outgoingOpacity, transform: [{ scale: outgoingScale }] }
-              : { opacity: 1 },
-          ]}
-        >
+      <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+        {morphing ? (
+          <>
+            <Animated.View
+              style={[styles.layer, { opacity: outgoingOpacity, transform: [{ scale: outgoingScale }] }]}
+            >
+              <Ionicons name={shown} size={size} color={color} />
+            </Animated.View>
+            <Animated.View
+              style={[styles.layer, { opacity: incomingOpacity, transform: [{ scale: incomingScale }] }]}
+            >
+              <Ionicons name={name} size={size} color={color} />
+            </Animated.View>
+          </>
+        ) : (
           <Ionicons name={shown} size={size} color={color} />
-        </Animated.View>
-        {incoming ? (
-          <Animated.View
-            style={[
-              styles.layer,
-              { opacity: incomingOpacity, transform: [{ scale: incomingScale }] },
-            ]}
-          >
-            <Ionicons name={name} size={size} color={color} />
-          </Animated.View>
-        ) : null}
+        )}
       </View>
     </Animated.View>
   );

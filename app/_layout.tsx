@@ -4,10 +4,10 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import {
-  Fredoka_400Regular,
-  Fredoka_600SemiBold,
-  Fredoka_700Bold,
-} from '@expo-google-fonts/fredoka';
+  BarlowSemiCondensed_400Regular,
+  BarlowSemiCondensed_600SemiBold,
+  BarlowSemiCondensed_700Bold,
+} from '@expo-google-fonts/barlow-semi-condensed';
 import React from 'react';
 import { useStore } from '@tanstack/react-store';
 import { LoadingScreen } from '@/components/LoadingScreen';
@@ -17,6 +17,9 @@ import { ReactNativeProvider, WalletProvider } from '@/providers/ReactNativeProv
 import { accountsStore } from '@/stores/accounts';
 import { accountHooks, keyStoreHooks } from '@/stores/before-after';
 import { keyStore } from '@/stores/keystore';
+import { StyleSheet, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { BackgroundTexture } from '@/components/BackgroundTexture';
 import { colors } from '@/lib/theme';
 import { sheetScreenOptions } from '@/lib/motion/sheet';
 
@@ -52,7 +55,7 @@ function RootNavigation({ ready }: { ready: boolean }) {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: colors.bg },
+        contentStyle: { backgroundColor: 'transparent' },
         animation: 'fade',
       }}
     >
@@ -62,6 +65,8 @@ function RootNavigation({ ready }: { ready: boolean }) {
       <Stack.Screen name="swap" options={sheetScreenOptions} />
       <Stack.Screen name="send" options={sheetScreenOptions} />
       <Stack.Screen name="receive" options={sheetScreenOptions} />
+      <Stack.Screen name="profile" options={sheetScreenOptions} />
+      <Stack.Screen name="add-asset" options={sheetScreenOptions} />
     </Stack>
   );
 }
@@ -70,9 +75,9 @@ export default function RootLayout() {
   const status = useStore(keyStore, (state) => state.status);
   const [hasLoadedOnce, setHasLoadedOnce] = React.useState(false);
   const [fontsLoaded, fontError] = useFonts({
-    Fredoka_400Regular,
-    Fredoka_600SemiBold,
-    Fredoka_700Bold,
+    BarlowSemiCondensed_400Regular,
+    BarlowSemiCondensed_600SemiBold,
+    BarlowSemiCondensed_700Bold,
   });
 
   React.useEffect(() => {
@@ -89,9 +94,26 @@ export default function RootLayout() {
   const fontsReady = fontsLoaded || fontError != null;
 
   return (
-    <WalletProvider provider={provider}>
-      <StatusBar style="dark" />
-      <RootNavigation ready={hasLoadedOnce && fontsReady} />
-    </WalletProvider>
+    <SafeAreaProvider>
+      <View style={styles.root}>
+        <BackgroundTexture />
+        <WalletProvider provider={provider}>
+          <StatusBar style="dark" />
+          <View style={styles.fill}>
+            <RootNavigation ready={hasLoadedOnce && fontsReady} />
+          </View>
+        </WalletProvider>
+      </View>
+    </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  fill: {
+    flex: 1,
+  },
+});

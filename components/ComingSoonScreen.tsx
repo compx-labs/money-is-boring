@@ -1,5 +1,4 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HapticPressable } from '@/components/HapticPressable';
 import { SheetScaffold, useSheetDismiss } from '@/components/SheetScaffold';
 import { colors, fonts } from '@/lib/theme';
@@ -14,10 +13,9 @@ export function ComingSoonScreen({ title }: { title: string }) {
 
 function ComingSoonBody({ title }: { title: string }) {
   const dismiss = useSheetDismiss();
-  const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top + 24 }]}>
+    <View style={styles.screen}>
       <HapticPressable onPress={dismiss} accessibilityRole="button" accessibilityLabel="Back">
         <Text style={styles.back}>home</Text>
       </HapticPressable>
@@ -29,9 +27,10 @@ function ComingSoonBody({ title }: { title: string }) {
 
 const styles = StyleSheet.create({
   screen: {
-    flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: 'transparent',
     paddingHorizontal: 28,
+    paddingTop: 8,
+    paddingBottom: 20,
     gap: 16,
   },
   back: {

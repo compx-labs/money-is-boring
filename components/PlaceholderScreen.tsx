@@ -15,7 +15,7 @@ export function PlaceholderScreen({ title, hint }: { title: string; hint: string
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: 'transparent',
     paddingHorizontal: 28,
     gap: 16,
   },

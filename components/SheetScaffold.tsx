@@ -4,17 +4,28 @@ import {
   Animated,
   PanResponder,
   Pressable,
+  ScrollView,
   StyleSheet,
   View,
   useWindowDimensions,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Chamfer } from '@/components/Chamfer';
 import { thud } from '@/lib/motion/haptics';
 import {
   DISMISS_DISTANCE,
   layoutSpringConfig,
   rubberOffset,
 } from '@/lib/motion/layout';
+import {
+  SHEET_GUTTER,
+  SHEET_HANDLE_HEIGHT,
+  SHEET_HANDLE_WIDTH,
+  SHEET_LIP,
+} from '@/lib/motion/sheet';
+import { BackgroundTexture } from '@/components/BackgroundTexture';
 import { colors } from '@/lib/theme';
 
 const SheetDismiss = React.createContext<(() => void) | null>(null);
@@ -25,13 +36,18 @@ export function useSheetDismiss(): () => void {
   return dismiss ?? (() => router.back());
 }
 
-/** Bottom card that springs in, settles, and rubber-bands on drag-dismiss. */
+const HANDLE_HIT = 22;
+const CHROME = SHEET_LIP + HANDLE_HIT;
+
+/** Bottom card: off-white, light shadow, sheared magenta lip. Height hugs content. */
 export function SheetScaffold({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const translateY = React.useRef(new Animated.Value(height)).current;
   const closing = React.useRef(false);
   const [reduceMotion, setReduceMotion] = React.useState(false);
+  const [bodyH, setBodyH] = React.useState(0);
 
   React.useEffect(() => {
     let alive = true;
@@ -88,6 +104,22 @@ export function SheetScaffold({ children }: { children: React.ReactNode }) {
     [dismiss, settle, translateY],
   );
 
+  const bottom = Math.max(insets.bottom, SHEET_GUTTER);
+  const maxH = height - insets.top - SHEET_GUTTER;
+  const bodyMax = Math.max(120, maxH - CHROME);
+  const capped = bodyH > bodyMax;
+
+  const onBodyLayout = React.useCallback(
+    (event: LayoutChangeEvent) => {
+      const next = event.nativeEvent.layout.height;
+      setBodyH((prev) => {
+        if (capped) return prev;
+        return Math.abs(prev - next) < 1 ? prev : next;
+      });
+    },
+    [capped],
+  );
+
   return (
     <SheetDismiss.Provider value={dismiss}>
       <View style={styles.fill}>
@@ -97,11 +129,45 @@ export function SheetScaffold({ children }: { children: React.ReactNode }) {
           accessibilityRole="button"
           accessibilityLabel="Dismiss"
         />
-        <Animated.View style={[styles.card, { transform: [{ translateY }] }]}>
-          <View style={styles.handleHit} {...pan.panHandlers}>
-            <View style={styles.grabber} />
+        <Animated.View
+          style={[
+            styles.lift,
+            {
+              left: SHEET_GUTTER,
+              right: SHEET_GUTTER,
+              bottom,
+              maxHeight: maxH,
+              transform: [{ translateY }],
+            },
+          ]}
+        >
+          <View style={styles.card}>
+            <BackgroundTexture />
+            <View style={styles.chrome} {...pan.panHandlers}>
+              <Chamfer fill={colors.button} style={styles.lip} />
+              <View style={styles.handleHit}>
+                <Chamfer fill={colors.button} style={styles.handle} />
+              </View>
+            </View>
+            <View
+              onLayout={capped ? undefined : onBodyLayout}
+              style={capped ? { height: bodyMax } : styles.bodyWrap}
+            >
+              {capped ? (
+                <ScrollView
+                  style={styles.bodyScroll}
+                  contentContainerStyle={styles.body}
+                  bounces={false}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                >
+                  {children}
+                </ScrollView>
+              ) : (
+                children
+              )}
+            </View>
           </View>
-          <View style={styles.body}>{children}</View>
         </Animated.View>
       </View>
     </SheetDismiss.Provider>
@@ -115,26 +181,42 @@ const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
   },
+  lift: {
+    position: 'absolute',
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    elevation: 12,
+  },
   card: {
-    flex: 1,
-    marginTop: 12,
     backgroundColor: colors.bg,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
     overflow: 'hidden',
+  },
+  chrome: {
+    alignSelf: 'stretch',
+    zIndex: 1,
+  },
+  lip: {
+    alignSelf: 'stretch',
+    height: SHEET_LIP,
   },
   handleHit: {
     alignItems: 'center',
-    paddingTop: 8,
+    paddingTop: 10,
     paddingBottom: 6,
   },
-  grabber: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.line,
+  handle: {
+    width: SHEET_HANDLE_WIDTH,
+    height: SHEET_HANDLE_HEIGHT,
+  },
+  bodyWrap: {
+    alignSelf: 'stretch',
+  },
+  bodyScroll: {
+    flex: 1,
   },
   body: {
-    flex: 1,
+    flexGrow: 0,
   },
 });

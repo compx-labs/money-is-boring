@@ -13,7 +13,7 @@ export function LoadingScreen() {
 const styles = StyleSheet.create({
   wrap: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 16,

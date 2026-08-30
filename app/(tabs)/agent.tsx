@@ -147,10 +147,10 @@ export default function Agent() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.bg },
+  flex: { flex: 1, backgroundColor: 'transparent' },
   screen: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: 'transparent',
     paddingHorizontal: 28,
     gap: 16,
   },
