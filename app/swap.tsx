@@ -22,8 +22,8 @@ import {
   toBaseUnits,
   type Holding,
 } from '@/lib/algorand/balances';
-import { executeHaySwap } from '@/lib/canix/execute';
-import { quoteHaySwap, type HayQuote } from '@/lib/canix/hay';
+import { executeHaySwap } from '@/lib/hay/execute';
+import { quoteHaySwap, type HayQuote } from '@/lib/hay/router';
 import { colors, fonts, USDC_ASA_ID } from '@/lib/theme';
 
 const DEBOUNCE_MS = 450;
@@ -179,7 +179,7 @@ export default function Swap() {
         {quote?.userPriceImpact != null ? (
           <Text style={styles.meta}>impact {quote.userPriceImpact.toFixed(2)}%</Text>
         ) : null}
-        <Text style={styles.meta}>Hay router · 1% slip · 0.005 USDC cut</Text>
+        <Text style={styles.meta}>Hay router · 1% slip</Text>
         {quoteError ? <Text style={styles.error}>{quoteError}</Text> : null}
 
         <Pressable

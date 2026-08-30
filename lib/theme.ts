@@ -20,6 +20,10 @@ export const fonts = {
 
 export const USDC_ASA_ID = 31566704;
 export const ALGOD_URL = 'https://mainnet-api.algonode.cloud';
-export const CANIX_URL = 'https://canix402-api.compx.io';
+export const HAY_URL = 'https://hayrouter.txnlab.dev';
+/** Published Hay free-tier key (60 req/min). Not a Canix secret. */
+export const HAY_API_KEY = '1b72df7e-1131-4449-8ce1-29b79dd3f51e';
+/** Hay output fee in basis points (10 = 0.10%). */
+export const HAY_FEE_BPS = 10;
 /** Hay slippage as a percentage (1 = 1%). */
 export const HAY_SLIPPAGE_PCT = 1;

@@ -1,42 +1,59 @@
-import { decodeUnsignedTransaction } from 'algosdk';
+import {
+  assignGroupID,
+  decodeUnsignedTransaction,
+  makeApplicationOptInTxnFromObject,
+  waitForConfirmation,
+} from 'algosdk';
 import type { KeyStoreAPI } from '@algorandfoundation/react-native-keystore';
 import { algod } from '@/lib/algorand/client';
-import { waitForConfirmation } from 'algosdk';
+import type { HayTxn } from '@/lib/hay/router';
 
-export type WalletlessTxn = {
-  index: number;
-  encodedTransaction: string;
-  signedTransaction?: string;
-  signer: 'user' | 'haystack';
-};
-
-function b64Bytes(value: string): Uint8Array {
-  return Uint8Array.from(Buffer.from(value, 'base64'));
+/** Hay serializes Uint8Array as `{ "0": n, "1": n, ... }`. Do not use Object.values (lexicographic keys). */
+export function bytesFromHayJson(value: unknown): Uint8Array {
+  if (value instanceof Uint8Array) return value;
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(value)) return Uint8Array.from(value);
+  if (typeof value === 'string') return Uint8Array.from(Buffer.from(value, 'base64'));
+  if (Array.isArray(value)) return Uint8Array.from(value as number[]);
+  if (value && typeof value === 'object') {
+    const rec = value as Record<string, unknown>;
+    if (rec.type === 'Buffer' && Array.isArray(rec.data)) {
+      return Uint8Array.from(rec.data as number[]);
+    }
+    const n = Object.keys(rec).length;
+    const out = new Uint8Array(n);
+    for (let i = 0; i < n; i += 1) {
+      const b = rec[i] ?? rec[String(i)];
+      if (typeof b !== 'number') throw new Error('Malformed Hay byte object');
+      out[i] = b;
+    }
+    return out;
+  }
+  throw new Error('Unusable Hay bytes');
 }
 
-/** Sign user legs of a Canix/Hay group. Haystack members pass through unchanged. */
-export async function signWalletlessGroup(
+function haystackBlob(txn: HayTxn): Uint8Array | null {
+  if (txn.logicSigBlob === false || txn.logicSigBlob == null) return null;
+  return bytesFromHayJson(txn.logicSigBlob);
+}
+
+/** Sign user legs of a Hay group. Haystack members (logicSigBlob) pass through. */
+export async function signHayGroup(
   store: Pick<KeyStoreAPI, 'sign'>,
   keyId: string,
   address: string,
-  transactions: WalletlessTxn[],
-  userSignIndexes: number[],
+  transactions: HayTxn[],
 ): Promise<{ blobs: Uint8Array[]; txid: string }> {
-  const user = new Set(userSignIndexes);
   const blobs: Uint8Array[] = [];
   let txid = '';
 
-  for (let i = 0; i < transactions.length; i += 1) {
-    const txn = transactions[i];
-    if (!user.has(i) && txn.signer !== 'user') {
-      if (!txn.signedTransaction) {
-        throw new Error(`Haystack member ${i} is missing a signature`);
-      }
-      blobs.push(b64Bytes(txn.signedTransaction));
+  for (const txn of transactions) {
+    const ready = haystackBlob(txn);
+    if (ready) {
+      blobs.push(ready);
       continue;
     }
 
-    const decoded = decodeUnsignedTransaction(b64Bytes(txn.encodedTransaction));
+    const decoded = decodeUnsignedTransaction(bytesFromHayJson(txn.data));
     const sig = await store.sign(keyId, decoded.bytesToSign());
     blobs.push(decoded.attachSignature(address, sig));
     if (!txid) txid = decoded.txID();
@@ -44,6 +61,30 @@ export async function signWalletlessGroup(
 
   if (!txid) throw new Error('Nothing for this device to sign');
   return { blobs, txid };
+}
+
+export async function signAndSubmitAppOptIns(
+  store: Pick<KeyStoreAPI, 'sign'>,
+  keyId: string,
+  address: string,
+  appIds: number[],
+): Promise<void> {
+  if (appIds.length === 0) return;
+  const client = algod();
+  const suggestedParams = await client.getTransactionParams().do();
+  const txns = appIds.map((appIndex) =>
+    makeApplicationOptInTxnFromObject({ sender: address, appIndex, suggestedParams }),
+  );
+  if (txns.length > 1) assignGroupID(txns);
+
+  const blobs: Uint8Array[] = [];
+  let txid = '';
+  for (const txn of txns) {
+    const sig = await store.sign(keyId, txn.bytesToSign());
+    blobs.push(txn.attachSignature(address, sig));
+    if (!txid) txid = txn.txID();
+  }
+  await submitSignedGroup(blobs, txid);
 }
 
 export async function submitSignedGroup(blobs: Uint8Array[], txid: string) {
