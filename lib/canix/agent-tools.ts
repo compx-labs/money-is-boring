@@ -122,7 +122,7 @@ export const AGENT_CANIX_TOOLS = [
     type: 'function',
     name: 'canix_opportunities',
     description:
-      'List Canix DeFi opportunities (APY, TVL, shape keys). Paid from the user pot. Does not spend beyond the research fee and never submits transactions.',
+      'List Canix DeFi opportunities (APY, TVL, shape keys). Paid from the wallet USDC balance. Does not spend beyond the research fee and never submits transactions.',
     parameters: {
       type: 'object',
       properties: {

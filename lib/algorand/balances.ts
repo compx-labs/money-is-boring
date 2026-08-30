@@ -140,7 +140,7 @@ export function fractionDigits(holding: Holding): number {
   return Math.min(holding.decimals, 6);
 }
 
-export function truncateAddress(address: string): string {
-  if (address.length < 16) return address;
-  return `${address.slice(0, 6)}…${address.slice(-6)}`;
+export function truncateAddress(address: string, chars = 6): string {
+  if (address.length < chars * 2 + 1) return address;
+  return `${address.slice(0, chars)}…${address.slice(-chars)}`;
 }

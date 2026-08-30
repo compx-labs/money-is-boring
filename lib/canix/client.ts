@@ -30,7 +30,7 @@ function paymentRequiredHeader(res: Response): string | null {
 
 /**
  * Call Canix. Free routes return immediately. Paid agent routes take USDC
- * from the user's pot via x402 — no API key, no invoices.
+ * from the wallet via x402 — no API key, no invoices.
  */
 export async function canixRequest<T>(input: {
   store: Pick<KeyStoreAPI, 'sign'>;
@@ -65,27 +65,4 @@ export async function canixRequest<T>(input: {
   });
   if (retry.status !== 200) fail(retry.status, await readJson(retry), 'Canix payment failed');
   return { json: (await readJson(retry)) as T, paidMicro };
-}
-
-function opportunityCount(json: unknown): number {
-  if (Array.isArray(json)) return json.length;
-  if (json && typeof json === 'object') {
-    const rec = json as Record<string, unknown>;
-    if (Array.isArray(rec.data)) return rec.data.length;
-    if (Array.isArray(rec.opportunities)) return rec.opportunities.length;
-  }
-  return 0;
-}
-
-/** Paid agent research call (~0.01 USDC) from the user-funded USDC pot. */
-export async function pingCanixOpportunities(input: {
-  store: Pick<KeyStoreAPI, 'sign'>;
-  keyId: string;
-  address: string;
-}): Promise<{ count: number; paidMicro: bigint }> {
-  const { json, paidMicro } = await canixRequest<unknown>({
-    ...input,
-    path: '/opportunities?limit=10',
-  });
-  return { count: opportunityCount(json), paidMicro };
 }

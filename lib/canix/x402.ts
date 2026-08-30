@@ -38,7 +38,7 @@ export function x402AmountMicro(paymentRequiredHeader: string): bigint {
 }
 
 /**
- * Sign a Canix exact-scheme x402 USDC transfer from the user's pot.
+ * Sign a Canix exact-scheme x402 USDC transfer from the wallet.
  * Fee-payer txn stays unsigned; the user signs only the USDC transfer.
  */
 export async function signX402Payment(
