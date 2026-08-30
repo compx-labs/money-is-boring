@@ -1,14 +1,14 @@
 export const colors = {
-  bg: '#1a1a1a',
-  surface: '#242424',
+  bg: '#ffffff',
+  surface: '#f2f2f2',
   cubeTop: '#9a9a9a',
   cubeLeft: '#5c5c5c',
   cubeRight: '#787878',
-  text: '#e8e8e8',
-  muted: '#8a8a8a',
-  line: '#3a3a3a',
-  button: '#e8e8e8',
-  buttonText: '#1a1a1a',
+  text: '#333333',
+  muted: '#6a6a6a',
+  line: '#e0e0e0',
+  button: '#333333',
+  buttonText: '#ffffff',
 };
 
 export const USDC_ASA_ID = 31566704;

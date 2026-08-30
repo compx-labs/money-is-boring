@@ -69,7 +69,7 @@ export default function RootLayout() {
 
   return (
     <WalletProvider provider={provider}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <RootNavigation ready={hasLoadedOnce} />
     </WalletProvider>
   );

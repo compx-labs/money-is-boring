@@ -7,13 +7,13 @@ module.exports = {
     version,
     orientation: 'portrait',
     scheme: 'mib',
-    userInterfaceStyle: 'dark',
+    userInterfaceStyle: 'light',
     newArchEnabled: true,
     icon: './assets/icon.png',
     splash: {
       image: './assets/splash.png',
       resizeMode: 'contain',
-      backgroundColor: '#1a1a1a',
+      backgroundColor: '#ffffff',
     },
     ios: {
       supportsTablet: false,
@@ -27,7 +27,7 @@ module.exports = {
     android: {
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
-        backgroundColor: '#1a1a1a',
+        backgroundColor: '#ffffff',
       },
       edgeToEdgeEnabled: true,
       package: 'io.compx.moneyisboring',
@@ -40,7 +40,7 @@ module.exports = {
         {
           image: './assets/splash.png',
           resizeMode: 'contain',
-          backgroundColor: '#1a1a1a',
+          backgroundColor: '#ffffff',
         },
       ],
       [
