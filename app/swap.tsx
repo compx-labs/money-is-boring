@@ -203,11 +203,7 @@ export default function Swap() {
           disabled={!quote || !!busy}
           accessibilityRole="button"
           accessibilityLabel="Confirm swap"
-          style={({ pressed }) => [
-            styles.button,
-            pressed && styles.buttonPressed,
-            (!quote || !!busy) && styles.buttonBusy,
-          ]}
+          style={[styles.button, (!quote || !!busy) && styles.buttonBusy]}
         >
           <Text style={styles.buttonLabel}>{busy || 'swap'}</Text>
         </HapticPressable>
@@ -308,7 +304,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 12,
   },
-  buttonPressed: { opacity: 0.85 },
   buttonBusy: { opacity: 0.6 },
   buttonLabel: {
     color: colors.buttonText,

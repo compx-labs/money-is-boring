@@ -37,7 +37,7 @@ function CircleButton({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={({ pressed }) => [styles.circle, pressed && styles.circlePressed]}
+      style={styles.circle}
     >
       <Ionicons name={icon} size={24} color={colors.buttonText} />
     </HapticPressable>
@@ -46,12 +46,12 @@ function CircleButton({
 
 function Row({ label, value }: { label: string; value: number | null }) {
   return (
-    <View style={styles.row}>
+    <HapticPressable accessibilityRole="button" accessibilityLabel={label} style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
       <View style={styles.rowValuePill}>
         <RollingNumber value={value} format={formatBalance} style={styles.rowValue} />
       </View>
-    </View>
+    </HapticPressable>
   );
 }
 
@@ -82,7 +82,7 @@ export default function Home() {
           onPress={onCopy}
           accessibilityRole="button"
           accessibilityLabel="Wallet address"
-          style={({ pressed }) => [styles.addressPill, pressed && styles.circlePressed]}
+          style={styles.addressPill}
         >
           <Text style={styles.address} numberOfLines={1}>
             {copied ? 'copied' : truncateAddress(address, 4)}
@@ -201,7 +201,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  circlePressed: { opacity: 0.85 },
   error: {
     color: colors.muted,
     fontFamily: fonts.regular,

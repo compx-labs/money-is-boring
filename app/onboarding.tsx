@@ -48,11 +48,7 @@ export default function Onboarding() {
           disabled={busy}
           accessibilityRole="button"
           accessibilityLabel="Create with passkey"
-          style={({ pressed }) => [
-            styles.button,
-            pressed && styles.buttonPressed,
-            busy && styles.buttonBusy,
-          ]}
+          style={[styles.button, busy && styles.buttonBusy]}
         >
           <Text style={styles.buttonLabel}>{busy ? 'creating…' : 'Create with passkey'}</Text>
         </HapticPressable>
@@ -93,9 +89,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  buttonPressed: {
-    opacity: 0.85,
   },
   buttonBusy: {
     opacity: 0.6,

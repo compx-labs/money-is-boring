@@ -123,11 +123,7 @@ export default function Agent() {
             disabled={!!busy || !draft.trim()}
             accessibilityRole="button"
             accessibilityLabel="Send"
-            style={({ pressed }) => [
-              styles.send,
-              pressed && styles.buttonPressed,
-              (!!busy || !draft.trim()) && styles.buttonBusy,
-            ]}
+            style={[styles.send, (!!busy || !draft.trim()) && styles.buttonBusy]}
           >
             <Text style={styles.sendLabel}>send</Text>
           </HapticPressable>
@@ -208,6 +204,5 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: 18,
   },
-  buttonPressed: { opacity: 0.85 },
   buttonBusy: { opacity: 0.6 },
 });
