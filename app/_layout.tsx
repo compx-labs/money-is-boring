@@ -54,7 +54,12 @@ function RootNavigation({ ready }: { ready: boolean }) {
         contentStyle: { backgroundColor: colors.bg },
         animation: 'fade',
       }}
-    />
+    >
+      <Stack.Screen name="index" />
+      <Stack.Screen name="onboarding" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="swap" />
+    </Stack>
   );
 }
 

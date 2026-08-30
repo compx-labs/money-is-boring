@@ -34,7 +34,7 @@ export default function Home() {
   return (
     <ScrollView
       style={styles.scroll}
-      contentContainerStyle={[styles.screen, { paddingTop: insets.top + 36, paddingBottom: insets.bottom + 24 }]}
+      contentContainerStyle={[styles.screen, { paddingTop: insets.top + 36, paddingBottom: 24 }]}
     >
       <SittingCube size={140} />
 
