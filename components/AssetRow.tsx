@@ -4,12 +4,14 @@ import { Chamfer } from '@/components/Chamfer';
 import { HapticPressable } from '@/components/HapticPressable';
 import { AssetIcon } from '@/components/AssetIcon';
 import { RollingNumber } from '@/components/RollingNumber';
-import { colors, fonts } from '@/lib/theme';
+import { useAccent } from '@/hooks/useAccent';
+import { useChrome } from '@/hooks/useChrome';
+import { fonts } from '@/lib/theme';
 
 function formatBalance(value: number): string {
   return value.toLocaleString(undefined, {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 4,
   });
 }
 
@@ -28,6 +30,8 @@ export function AssetRow({
   onPress?: () => void;
   disabled?: boolean;
 }) {
+  const { accent } = useAccent();
+  const { bg, ink } = useChrome();
   return (
     <HapticPressable
       onPress={onPress}
@@ -38,8 +42,8 @@ export function AssetRow({
       style={styles.rowPress}
     >
       <Chamfer
-        fill={colors.bg}
-        stroke={colors.button}
+        fill={bg}
+        stroke={accent}
         strokeWidth={6}
         strokeDasharray={optedIn ? undefined : '8 6'}
         strokeEdge="left"
@@ -48,10 +52,14 @@ export function AssetRow({
       >
         <View style={styles.rowLeft}>
           <AssetIcon unit={label} uri={icon} />
-          <Text style={styles.rowLabel}>{label}</Text>
+          <Text style={[styles.rowLabel, { color: ink }]}>{label}</Text>
         </View>
         {optedIn ? (
-          <RollingNumber value={value ?? null} format={formatBalance} style={styles.rowValue} />
+          <RollingNumber
+            value={value ?? null}
+            format={formatBalance}
+            style={[styles.rowValue, { color: ink }]}
+          />
         ) : null}
       </Chamfer>
     </HapticPressable>
@@ -71,8 +79,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: 48,
     paddingVertical: 14,
-    paddingLeft: 36,
-    paddingRight: 42,
+    paddingLeft: 16,
+    paddingRight: 20,
     gap: 16,
   },
   rowLeft: {
@@ -82,7 +90,6 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   rowLabel: {
-    color: colors.ink,
     fontFamily: fonts.regular,
     fontSize: 18,
     lineHeight: 20,
@@ -92,7 +99,6 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
   rowValue: {
-    color: colors.ink,
     fontFamily: fonts.bold,
     fontSize: 36,
     lineHeight: 40,

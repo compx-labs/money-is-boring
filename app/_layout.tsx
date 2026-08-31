@@ -20,7 +20,8 @@ import { keyStore } from '@/stores/keystore';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BackgroundTexture } from '@/components/BackgroundTexture';
-import { colors } from '@/lib/theme';
+import { useChrome } from '@/hooks/useChrome';
+import { useColorMode } from '@/hooks/useColorMode';
 import { sheetScreenOptions } from '@/lib/motion/sheet';
 
 // Ensure install() ran even if a test imports this module without index.js.
@@ -66,6 +67,7 @@ function RootNavigation({ ready }: { ready: boolean }) {
       <Stack.Screen name="send" options={sheetScreenOptions} />
       <Stack.Screen name="receive" options={sheetScreenOptions} />
       <Stack.Screen name="profile" options={sheetScreenOptions} />
+      <Stack.Screen name="merchant/[id]" options={sheetScreenOptions} />
       <Stack.Screen name="add-asset" options={sheetScreenOptions} />
     </Stack>
   );
@@ -92,13 +94,15 @@ export default function RootLayout() {
   }, [ready]);
 
   const fontsReady = fontsLoaded || fontError != null;
+  const { bg } = useChrome();
+  const mode = useColorMode();
 
   return (
     <SafeAreaProvider>
-      <View style={styles.root}>
+      <View style={[styles.root, { backgroundColor: bg }]}>
         <BackgroundTexture />
         <WalletProvider provider={provider}>
-          <StatusBar style="dark" />
+          <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
           <View style={styles.fill}>
             <RootNavigation ready={hasLoadedOnce && fontsReady} />
           </View>
@@ -111,7 +115,6 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.bg,
   },
   fill: {
     flex: 1,

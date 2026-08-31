@@ -8,9 +8,12 @@ import {
 } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { HapticPressable } from '@/components/HapticPressable';
+import { Chamfer } from '@/components/Chamfer';
+import { ChamferButton } from '@/components/ChamferButton';
 import { RollingNumber } from '@/components/RollingNumber';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { SheetScaffold, useSheetDismiss } from '@/components/SheetScaffold';
+import { useAccent } from '@/hooks/useAccent';
 import { useProvider } from '@/hooks/useProvider';
 import { useWalletBalances } from '@/hooks/useWalletBalances';
 import { algorandAddressFromKey, findWalletAccount } from '@/lib/keystore/wallet-account';
@@ -53,6 +56,7 @@ export default function Swap() {
   const { keys, accounts, key } = useProvider();
   const wallet = findWalletAccount(accounts, keys);
   const address = wallet ? algorandAddressFromKey(wallet.key) : '';
+  const { accent, surface, onAccent } = useAccent();
   const balances = useWalletBalances(address);
   const assets = mergeAssets(balances.holdings);
 
@@ -154,7 +158,7 @@ export default function Swap() {
 
         <Text style={styles.title}>swap</Text>
 
-        <View style={styles.card}>
+        <Chamfer fill={surface} style={styles.card} contentStyle={styles.cardInner}>
           <Text style={styles.label}>from</Text>
           <HapticPressable onPress={() => pick(fromId, toId, setFromId)} accessibilityRole="button">
             <Text style={styles.asset}>{fromAsset?.unit ?? 'ALGO'}</Text>
@@ -172,13 +176,15 @@ export default function Swap() {
             <RollingNumber value={fromAsset?.amount ?? 0} format={formatAmount} style={styles.balance} />
             <Text style={styles.balance}> {fromAsset?.unit}</Text>
           </View>
-        </View>
+        </Chamfer>
 
         <HapticPressable onPress={invert} accessibilityRole="button" accessibilityLabel="Swap direction" style={styles.flip}>
-          <Text style={styles.flipLabel}>↕</Text>
+          <Chamfer fill={accent} contentInset={false} style={styles.flipFace} contentStyle={styles.flipInner}>
+            <Text style={[styles.flipLabel, { color: onAccent }]}>↕</Text>
+          </Chamfer>
         </HapticPressable>
 
-        <View style={styles.card}>
+        <Chamfer fill={surface} style={styles.card} contentStyle={styles.cardInner}>
           <Text style={styles.label}>to</Text>
           <HapticPressable onPress={() => pick(toId, fromId, setToId)} accessibilityRole="button">
             <Text style={styles.asset}>{outLabel}</Text>
@@ -189,7 +195,7 @@ export default function Swap() {
             placeholder={quoting ? '…' : '—'}
             style={styles.quoted}
           />
-        </View>
+        </Chamfer>
 
         {quote?.userPriceImpact != null ? (
           <Text style={styles.meta}>impact {quote.userPriceImpact.toFixed(2)}%</Text>
@@ -197,15 +203,13 @@ export default function Swap() {
         <Text style={styles.meta}>Hay router · 1% slip</Text>
         {quoteError ? <Text style={styles.error}>{quoteError}</Text> : null}
 
-        <HapticPressable
+        <ChamferButton
+          label={busy || 'swap'}
           onPress={onSwap}
           disabled={!quote || !!busy}
-          accessibilityRole="button"
           accessibilityLabel="Confirm swap"
-          style={[styles.button, (!quote || !!busy) && styles.buttonBusy]}
-        >
-          <Text style={styles.buttonLabel}>{busy || 'swap'}</Text>
-        </HapticPressable>
+          style={styles.swapAction}
+        />
       </View>
     </SheetScaffold>
   );
@@ -231,9 +235,10 @@ const styles = StyleSheet.create({
   },
   card: {
     alignSelf: 'stretch',
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    paddingHorizontal: 18,
+  },
+  cardInner: {
+    paddingLeft: 16,
+    paddingRight: 16,
     paddingVertical: 18,
     gap: 8,
   },
@@ -253,6 +258,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fonts.semibold,
     fontSize: 40,
+    padding: 0,
     paddingVertical: 4,
   },
   quoted: {
@@ -275,12 +281,21 @@ const styles = StyleSheet.create({
   },
   flip: {
     alignSelf: 'center',
-    padding: 4,
+  },
+  flipFace: {
+    width: 48,
+    height: 48,
+  },
+  flipInner: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   flipLabel: {
-    color: colors.text,
     fontFamily: fonts.bold,
-    fontSize: 32,
+    fontSize: 24,
   },
   meta: {
     color: colors.muted,
@@ -292,20 +307,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: 26,
   },
-  button: {
-    backgroundColor: colors.button,
-    borderRadius: 8,
-    minHeight: 80,
-    paddingVertical: 18,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+  swapAction: {
     marginTop: 12,
-  },
-  buttonBusy: { opacity: 0.6 },
-  buttonLabel: {
-    color: colors.buttonText,
-    fontFamily: fonts.bold,
-    fontSize: 32,
   },
 });

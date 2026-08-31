@@ -6,9 +6,10 @@ import { Chamfer } from '@/components/Chamfer';
 import { HapticPressable } from '@/components/HapticPressable';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { MorphIcon } from '@/components/MorphIcon';
+import { useAccent } from '@/hooks/useAccent';
+import { useChrome } from '@/hooks/useChrome';
 import { useProvider } from '@/hooks/useProvider';
 import { findWalletAccount } from '@/lib/keystore/wallet-account';
-import { colors } from '@/lib/theme';
 
 type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -21,16 +22,18 @@ const ICONS: Record<string, { on: IconName; off: IconName }> = {
 
 function BottomTabBar({ state, descriptors, navigation, insets }: TabBarProps) {
   const bottom = Math.max(insets.bottom, 12);
+  const { accent, tabWash } = useAccent();
+  const { tabFill } = useChrome();
 
   return (
     <View style={[styles.dock, { paddingBottom: bottom }]} pointerEvents="box-none">
       <Chamfer
-        fill="#ffffff"
-        stroke={colors.button}
+        fill={tabFill}
+        stroke={accent}
         strokeWidth={2}
         segments={state.routes.length}
         activeSegment={state.index}
-        activeFill="rgba(255, 31, 143, 0.12)"
+        activeFill={tabWash}
         style={styles.barFace}
         contentStyle={styles.bar}
       >
@@ -61,7 +64,7 @@ function BottomTabBar({ state, descriptors, navigation, insets }: TabBarProps) {
               <MorphIcon
                 name={focused ? icons.on : icons.off}
                 size={24}
-                color={colors.button}
+                color={accent}
               />
             </HapticPressable>
           );
@@ -77,6 +80,7 @@ function renderTabBar(props: TabBarProps) {
 
 export default function TabsLayout() {
   const { keys, accounts } = useProvider();
+  const { accent } = useAccent();
   const wallet = findWalletAccount(accounts, keys);
 
   if (keys.length === 0) return <Redirect href="/onboarding" />;
@@ -89,8 +93,8 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         sceneStyle: { backgroundColor: 'transparent' },
-        tabBarActiveTintColor: colors.button,
-        tabBarInactiveTintColor: colors.button,
+        tabBarActiveTintColor: accent,
+        tabBarInactiveTintColor: accent,
       }}
     >
       <Tabs.Screen name="home" options={{ title: 'Home' }} />

@@ -7,11 +7,16 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Svg, { G, Line, Polygon } from 'react-native-svg';
-import { CHAMFER, colors } from '@/lib/theme';
+import { chamferCut } from '@/lib/theme';
+import { useAccent } from '@/hooks/useAccent';
 
 const SHADOW_PAD = 8;
 const SHADOW_X = 3;
 const SHADOW_Y = 4;
+
+function numericPad(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
 
 function leftEdge(width: number, height: number, inset = 0): {
   x1: number;
@@ -19,20 +24,20 @@ function leftEdge(width: number, height: number, inset = 0): {
   x2: number;
   y2: number;
 } {
-  const cut = Math.min(width * CHAMFER, Math.max(0, width - inset * 2));
+  const cut = chamferCut(width, height, inset);
   const i = inset;
   return { x1: cut + i, y1: i, x2: i, y2: height - i };
 }
 
 function parallelogramPoints(width: number, height: number, inset = 0): string {
-  const cut = Math.min(width * CHAMFER, Math.max(0, width - inset * 2));
+  const cut = chamferCut(width, height, inset);
   const i = inset;
   return `${cut + i},${i} ${width - i},${i} ${width - cut - i},${height - i} ${i},${height - i}`;
 }
 
 /** Clip the outer parallelogram into equal-width columns so icons and highlights share the same slots. */
 function segmentPoints(width: number, height: number, count: number, index: number): string {
-  const cut = width * CHAMFER;
+  const cut = chamferCut(width, height);
   const x0 = (width / count) * index;
   const x1 = (width / count) * (index + 1);
   const topLeft = Math.max(x0, cut);
@@ -42,7 +47,7 @@ function segmentPoints(width: number, height: number, count: number, index: numb
   return `${topLeft},0 ${topRight},0 ${botRight},${height} ${botLeft},${height}`;
 }
 
-/** Right-leaning parallelogram face. Chamfer is 10% of width; corners are cut, not rounded. */
+/** Right-leaning parallelogram face. Slant is a fixed angle from vertical; corners are cut, not rounded. */
 export function Chamfer({
   children,
   fill,
@@ -54,6 +59,7 @@ export function Chamfer({
   segments,
   activeSegment,
   activeFill,
+  contentInset = true,
   style,
   contentStyle,
 }: {
@@ -67,9 +73,11 @@ export function Chamfer({
   segments?: number;
   activeSegment?: number;
   activeFill?: string;
+  contentInset?: boolean;
   style?: StyleProp<ViewStyle>;
   contentStyle?: StyleProp<ViewStyle>;
 }) {
+  const { accent } = useAccent();
   const [box, setBox] = React.useState({ width: 0, height: 0 });
 
   const onLayout = (event: LayoutChangeEvent) => {
@@ -78,6 +86,12 @@ export function Chamfer({
   };
 
   const flat = StyleSheet.flatten(style) ?? {};
+  const inner = StyleSheet.flatten(contentStyle) ?? {};
+  const cut =
+    contentInset && box.width > 0 && box.height > 0 ? chamferCut(box.width, box.height) : 0;
+  const padL = numericPad(inner.paddingLeft ?? inner.paddingHorizontal ?? inner.padding);
+  const padR = numericPad(inner.paddingRight ?? inner.paddingHorizontal ?? inner.padding);
+
   const face = (
     <View style={style} onLayout={onLayout}>
       {box.width > 0 && box.height > 0 ? (
@@ -89,7 +103,7 @@ export function Chamfer({
         >
           {shadow ? (
             <G opacity={0.18} transform={`translate(${SHADOW_X}, ${SHADOW_Y})`}>
-              <Polygon points={parallelogramPoints(box.width, box.height)} fill={colors.button} />
+              <Polygon points={parallelogramPoints(box.width, box.height)} fill={accent} />
             </G>
           ) : null}
           <Polygon
@@ -127,7 +141,15 @@ export function Chamfer({
           ) : null}
         </Svg>
       ) : null}
-      <View style={[styles.content, contentStyle]}>{children}</View>
+      <View
+        style={[
+          styles.content,
+          contentStyle,
+          contentInset ? { paddingLeft: padL + cut, paddingRight: padR + cut } : null,
+        ]}
+      >
+        {children}
+      </View>
     </View>
   );
 

@@ -12,19 +12,22 @@ import { RollingNumber } from '@/components/RollingNumber';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { SpringInsert } from '@/components/SpringInsert';
 import { AssetRow } from '@/components/AssetRow';
+import { useAccent } from '@/hooks/useAccent';
+import { useNickname } from '@/hooks/useNickname';
 import { useProvider } from '@/hooks/useProvider';
 import { useWalletBalances } from '@/hooks/useWalletBalances';
 import { useAsaIcons } from '@/hooks/useAsaIcons';
 import { useFiatTotal } from '@/hooks/useFiatTotal';
 import { algorandAddressFromKey, findWalletAccount } from '@/lib/keystore/wallet-account';
 import { truncateAddress } from '@/lib/algorand/balances';
-import { colors, fonts } from '@/lib/theme';
+import { chamferCut, colors, fonts } from '@/lib/theme';
 import { ICON_MORPH_MS } from '@/lib/motion/icon';
 import { Redirect, useRouter } from 'expo-router';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
 const ICON_HOLD_MS = ICON_MORPH_MS + 280;
+const ACTION_HEIGHT = 56;
 
 function formatFiat(value: number): string {
   return value.toLocaleString(undefined, {
@@ -44,6 +47,7 @@ function ActionButton({
   onPress: () => void;
   overlap?: boolean;
 }) {
+  const { accent, onAccent } = useAccent();
   return (
     <HapticPressable
       onPress={onPress}
@@ -51,14 +55,15 @@ function ActionButton({
       accessibilityLabel={label}
       style={[styles.actionPress, overlap && styles.actionOverlap]}
     >
-      <Chamfer fill={colors.button} style={styles.actionFace} contentStyle={styles.actionContent}>
-        <MorphIcon name={icon} size={24} color={colors.buttonText} bounce={icon === 'checkmark'} />
+      <Chamfer fill={accent} style={styles.actionFace} contentStyle={styles.actionContent}>
+        <MorphIcon name={icon} size={24} color={onAccent} bounce={icon === 'checkmark'} />
       </Chamfer>
     </HapticPressable>
   );
 }
 
 function OptInRow({ onPress }: { onPress: () => void }) {
+  const { accent } = useAccent();
   return (
     <HapticPressable
       onPress={onPress}
@@ -68,13 +73,13 @@ function OptInRow({ onPress }: { onPress: () => void }) {
     >
       <Chamfer
         fill="none"
-        stroke={colors.button}
+        stroke={accent}
         strokeWidth={2}
         strokeDasharray="8 6"
         style={styles.row}
         contentStyle={styles.optInInner}
       >
-        <Text style={styles.optInPlus}>+</Text>
+        <Text style={[styles.optInPlus, { color: accent }]}>+</Text>
       </Chamfer>
     </HapticPressable>
   );
@@ -86,6 +91,8 @@ export default function Home() {
   const { keys, accounts } = useProvider();
   const wallet = findWalletAccount(accounts, keys);
   const address = wallet ? algorandAddressFromKey(wallet.key) : '';
+  const nickname = useNickname(address);
+  const { accent, onAccent } = useAccent();
   const [copied, setCopied] = React.useState(false);
   const [sent, setSent] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
@@ -141,6 +148,13 @@ export default function Home() {
     router.push('/send');
   };
 
+  const pillLabel = nickname ? nickname.slice(0, 10) : truncateAddress(address, 4);
+  const menuLabel = copied
+    ? 'Copied address'
+    : nickname
+      ? `${pillLabel} account menu`
+      : 'Account menu';
+
   return (
     <View style={styles.root}>
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
@@ -149,17 +163,17 @@ export default function Home() {
             onPress={onOpenMenu}
             onLongPress={onCopy}
             accessibilityRole="button"
-            accessibilityLabel={copied ? 'Copied address' : 'Account menu'}
+            accessibilityLabel={menuLabel}
             accessibilityHint="Opens account menu. Press and hold to copy address."
           >
-            <Chamfer fill={colors.button} contentStyle={styles.addressInner}>
-              <Text style={styles.address} numberOfLines={1}>
-                {truncateAddress(address, 4)}
+            <Chamfer fill={accent} contentStyle={styles.addressInner}>
+              <Text style={[styles.address, { color: onAccent }]} numberOfLines={1}>
+                {pillLabel}
               </Text>
               <MorphIcon
                 name={copied ? 'checkmark' : menuOpen ? 'chevron-up' : 'chevron-down'}
                 size={18}
-                color={colors.buttonText}
+                color={onAccent}
                 bounce={copied}
               />
             </Chamfer>
@@ -179,7 +193,7 @@ export default function Home() {
         contentContainerStyle={[styles.screen, { paddingBottom: 24 }]}
       >
         <View style={styles.hero}>
-          <SittingCube size={140} />
+          <SittingCube size={140} scrollFriendly />
           <View
             style={styles.fiat}
             accessible
@@ -188,8 +202,12 @@ export default function Home() {
               fiatTotal == null ? 'Total loading' : `Total ${formatFiat(fiatTotal)} dollars`
             }
           >
-            <Text style={styles.fiatDollar}>$</Text>
-            <RollingNumber value={fiatTotal} format={formatFiat} style={styles.fiatAmount} />
+            <Text style={[styles.fiatDollar, { color: accent }]}>$</Text>
+            <RollingNumber
+              value={fiatTotal}
+              format={formatFiat}
+              style={[styles.fiatAmount, { color: accent }]}
+            />
           </View>
         </View>
 
@@ -248,11 +266,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 30,
+    paddingHorizontal: 16,
     paddingVertical: 9,
   },
   address: {
-    color: colors.buttonText,
     fontFamily: fonts.semibold,
     fontSize: 18,
     fontVariant: ['tabular-nums'],
@@ -279,7 +296,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   fiatDollar: {
-    color: colors.button,
     fontFamily: fonts.bold,
     fontSize: 40,
     lineHeight: 56,
@@ -287,7 +303,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   fiatAmount: {
-    color: colors.button,
     fontFamily: fonts.bold,
     fontSize: 56,
     lineHeight: 64,
@@ -311,7 +326,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   optInPlus: {
-    color: colors.button,
     opacity: 0.5,
     fontFamily: fonts.semibold,
     fontSize: 28,
@@ -326,10 +340,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   actionOverlap: {
-    marginLeft: '-2%',
+    marginLeft: -chamferCut(Number.POSITIVE_INFINITY, ACTION_HEIGHT),
   },
   actionFace: {
-    height: 56,
+    height: ACTION_HEIGHT,
     alignSelf: 'stretch',
   },
   actionContent: {

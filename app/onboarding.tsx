@@ -2,7 +2,7 @@ import React from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { HapticPressable } from '@/components/HapticPressable';
+import { ChamferButton } from '@/components/ChamferButton';
 import { SittingCube } from '@/components/SittingCube';
 import { useProvider } from '@/hooks/useProvider';
 import { useWalletSetup } from '@/hooks/useWalletSetup';
@@ -43,15 +43,12 @@ export default function Onboarding() {
       </View>
 
       <View style={styles.actions}>
-        <HapticPressable
+        <ChamferButton
+          label={busy ? 'creating…' : 'Create with passkey'}
           onPress={onCreate}
           disabled={busy}
-          accessibilityRole="button"
           accessibilityLabel="Create with passkey"
-          style={[styles.button, busy && styles.buttonBusy]}
-        >
-          <Text style={styles.buttonLabel}>{busy ? 'creating…' : 'Create with passkey'}</Text>
-        </HapticPressable>
+        />
         <Text style={styles.hint}>
           A second passkey / iCloud restore comes later. This device holds the key.
         </Text>
@@ -80,23 +77,6 @@ const styles = StyleSheet.create({
   },
   actions: {
     gap: 16,
-  },
-  button: {
-    backgroundColor: colors.button,
-    borderRadius: 8,
-    minHeight: 80,
-    paddingVertical: 18,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonBusy: {
-    opacity: 0.6,
-  },
-  buttonLabel: {
-    color: colors.buttonText,
-    fontFamily: fonts.bold,
-    fontSize: 32,
   },
   hint: {
     color: colors.muted,

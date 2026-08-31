@@ -11,9 +11,11 @@ import {
 } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { HapticPressable } from '@/components/HapticPressable';
+import { Chamfer } from '@/components/Chamfer';
+import { ChamferButton } from '@/components/ChamferButton';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { SpringInsert } from '@/components/SpringInsert';
+import { useAccent } from '@/hooks/useAccent';
 import { useProvider } from '@/hooks/useProvider';
 import { useWalletBalances } from '@/hooks/useWalletBalances';
 import { algorandAddressFromKey, findWalletAccount } from '@/lib/keystore/wallet-account';
@@ -29,6 +31,7 @@ export default function Agent() {
   const { keys, accounts, key } = useProvider();
   const wallet = findWalletAccount(accounts, keys);
   const address = wallet ? algorandAddressFromKey(wallet.key) : '';
+  const { accent, surface, onAccent } = useAccent();
   const balances = useWalletBalances(address);
   const [busy, setBusy] = React.useState('');
   const [draft, setDraft] = React.useState('');
@@ -103,9 +106,21 @@ export default function Agent() {
         >
           {messages.map((m) => (
             <SpringInsert key={m.id}>
-              <View style={[styles.bubble, m.role === 'user' ? styles.user : styles.assistant]}>
-                <Text style={m.role === 'user' ? styles.userText : styles.assistantText}>{m.text || '…'}</Text>
-              </View>
+              <Chamfer
+                fill={m.role === 'user' ? accent : surface}
+                style={[styles.bubble, m.role === 'user' ? styles.user : styles.assistant]}
+                contentStyle={styles.bubbleInner}
+              >
+                <Text
+                  style={
+                    m.role === 'user'
+                      ? [styles.userText, { color: onAccent }]
+                      : styles.assistantText
+                  }
+                >
+                  {m.text || '…'}
+                </Text>
+              </Chamfer>
             </SpringInsert>
           ))}
           {busy ? (
@@ -121,25 +136,25 @@ export default function Agent() {
         </ScrollView>
 
         <View style={styles.composer}>
-          <TextInput
-            value={draft}
-            onChangeText={setDraft}
-            placeholder="message"
-            placeholderTextColor={colors.muted}
-            editable={!busy}
-            multiline
-            style={styles.input}
-            accessibilityLabel="Agent message"
-          />
-          <HapticPressable
+          <Chamfer fill={surface} style={styles.inputFace} contentStyle={styles.inputInner}>
+            <TextInput
+              value={draft}
+              onChangeText={setDraft}
+              placeholder="message"
+              placeholderTextColor={colors.muted}
+              editable={!busy}
+              multiline
+              style={styles.input}
+              accessibilityLabel="Agent message"
+            />
+          </Chamfer>
+          <ChamferButton
+            label="send"
             onPress={onSend}
             disabled={!!busy || !draft.trim()}
-            accessibilityRole="button"
-            accessibilityLabel="Send"
-            style={[styles.send, (!!busy || !draft.trim()) && styles.buttonBusy]}
-          >
-            <Text style={styles.sendLabel}>send</Text>
-          </HapticPressable>
+            compact
+            overlap
+          />
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -157,21 +172,20 @@ const styles = StyleSheet.create({
   chat: { flex: 1 },
   chatContent: { gap: 12, paddingBottom: 8 },
   bubble: {
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
     maxWidth: '92%',
+  },
+  bubbleInner: {
+    paddingLeft: 12,
+    paddingRight: 12,
+    paddingVertical: 12,
   },
   user: {
     alignSelf: 'flex-end',
-    backgroundColor: colors.button,
   },
   assistant: {
     alignSelf: 'flex-start',
-    backgroundColor: colors.surface,
   },
   userText: {
-    color: colors.buttonText,
     fontFamily: fonts.regular,
     fontSize: 22,
     lineHeight: 30,
@@ -191,32 +205,23 @@ const styles = StyleSheet.create({
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 8,
+  },
+  inputFace: {
+    flex: 1,
+  },
+  inputInner: {
+    minHeight: 48,
+    maxHeight: 105,
+    paddingLeft: 12,
+    paddingRight: 12,
+    paddingVertical: 10,
+    justifyContent: 'center',
   },
   input: {
-    flex: 1,
-    minHeight: 42,
-    maxHeight: 105,
-    backgroundColor: colors.surface,
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
     color: colors.text,
     fontFamily: fonts.regular,
     fontSize: 17,
+    padding: 0,
+    margin: 0,
   },
-  send: {
-    backgroundColor: colors.button,
-    borderRadius: 999,
-    minHeight: 42,
-    paddingHorizontal: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sendLabel: {
-    color: colors.buttonText,
-    fontFamily: fonts.bold,
-    fontSize: 18,
-  },
-  buttonBusy: { opacity: 0.6 },
 });

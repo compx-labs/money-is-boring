@@ -12,7 +12,9 @@ import {
 import { Chamfer } from '@/components/Chamfer';
 import { HapticPressable } from '@/components/HapticPressable';
 import { layoutSpringConfig } from '@/lib/motion/layout';
-import { colors, fonts } from '@/lib/theme';
+import { fonts } from '@/lib/theme';
+import { useAccent } from '@/hooks/useAccent';
+import { useChrome } from '@/hooks/useChrome';
 
 export type MenuAnchor = { x: number; y: number; width: number; height: number };
 
@@ -28,6 +30,8 @@ export function AccountMenu({
   onViewProfile: () => void;
 }) {
   const { width: windowWidth } = useWindowDimensions();
+  const { accent } = useAccent();
+  const { bg, ink } = useChrome();
   const opacity = React.useRef(new Animated.Value(0)).current;
   const offset = React.useRef(new Animated.Value(-8)).current;
   const [reduceMotion, setReduceMotion] = React.useState(false);
@@ -91,8 +95,8 @@ export function AccountMenu({
           ]}
         >
           <Chamfer
-            fill={colors.bg}
-            stroke={colors.button}
+            fill={bg}
+            stroke={accent}
             strokeWidth={2}
             style={{ minWidth: menuWidth }}
             contentStyle={styles.menuInner}
@@ -103,9 +107,9 @@ export function AccountMenu({
               accessibilityLabel="View profile"
               style={styles.item}
             >
-              <Text style={styles.itemLabel}>view profile</Text>
+              <Text style={[styles.itemLabel, { color: ink }]}>view profile</Text>
             </HapticPressable>
-            <View style={styles.divider} />
+            <View style={[styles.divider, { backgroundColor: accent }]} />
             <HapticPressable
               onPress={onClose}
               accessibilityRole="button"
@@ -113,7 +117,7 @@ export function AccountMenu({
               accessibilityHint="Not available yet"
               style={styles.item}
             >
-              <Text style={styles.itemLabel}>switch account</Text>
+              <Text style={[styles.itemLabel, { color: ink }]}>switch account</Text>
             </HapticPressable>
           </Chamfer>
         </Animated.View>
@@ -134,19 +138,17 @@ const styles = StyleSheet.create({
   },
   item: {
     alignSelf: 'stretch',
-    paddingHorizontal: 22,
+    paddingHorizontal: 12,
     paddingVertical: 12,
     minHeight: 44,
     justifyContent: 'center',
   },
   itemLabel: {
-    color: colors.ink,
     fontFamily: fonts.semibold,
     fontSize: 18,
   },
   divider: {
     height: 2,
-    backgroundColor: colors.button,
     opacity: 0.35,
     marginHorizontal: 14,
   },

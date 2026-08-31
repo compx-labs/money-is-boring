@@ -20,32 +20,45 @@ import {
   rubberOffset,
 } from '@/lib/motion/layout';
 import {
-  SHEET_GUTTER,
   SHEET_HANDLE_HEIGHT,
   SHEET_HANDLE_WIDTH,
   SHEET_LIP,
 } from '@/lib/motion/sheet';
 import { BackgroundTexture } from '@/components/BackgroundTexture';
-import { colors } from '@/lib/theme';
+import { useAccent } from '@/hooks/useAccent';
+import { useChrome } from '@/hooks/useChrome';
 
 const SheetDismiss = React.createContext<(() => void) | null>(null);
 
 export function useSheetDismiss(): () => void {
   const dismiss = React.useContext(SheetDismiss);
   const router = useRouter();
-  return dismiss ?? (() => router.back());
+  return (
+    dismiss ??
+    (() => {
+      if (router.canDismiss()) router.dismiss();
+      else router.back();
+    })
+  );
 }
 
 const HANDLE_HIT = 22;
 const CHROME = SHEET_LIP + HANDLE_HIT;
+/** Pop the modal once the card is off-screen — don't wait for the spring to rest. */
+const POP_AFTER_MS = 260;
 
 /** Bottom card: off-white, light shadow, sheared magenta lip. Height hugs content. */
 export function SheetScaffold({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { accent } = useAccent();
+  const { bg, ink } = useChrome();
   const { height } = useWindowDimensions();
   const translateY = React.useRef(new Animated.Value(height)).current;
-  const closing = React.useRef(false);
+  const closingRef = React.useRef(false);
+  const poppedRef = React.useRef(false);
+  const popTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [closing, setClosing] = React.useState(false);
   const [reduceMotion, setReduceMotion] = React.useState(false);
   const [bodyH, setBodyH] = React.useState(0);
 
@@ -79,11 +92,35 @@ export function SheetScaffold({ children }: { children: React.ReactNode }) {
     settle(0, thud);
   }, [settle]);
 
+  const popRoute = React.useCallback(() => {
+    if (poppedRef.current) return;
+    poppedRef.current = true;
+    if (popTimer.current) {
+      clearTimeout(popTimer.current);
+      popTimer.current = null;
+    }
+    if (router.canDismiss()) router.dismiss();
+    else router.back();
+  }, [router]);
+
+  React.useEffect(() => {
+    return () => {
+      if (popTimer.current) clearTimeout(popTimer.current);
+    };
+  }, []);
+
   const dismiss = React.useCallback(() => {
-    if (closing.current) return;
-    closing.current = true;
-    settle(height, () => router.back());
-  }, [height, router, settle]);
+    if (closingRef.current) return;
+    closingRef.current = true;
+    setClosing(true);
+    if (reduceMotion) {
+      translateY.setValue(height);
+      popRoute();
+      return;
+    }
+    Animated.spring(translateY, layoutSpringConfig(height)).start();
+    popTimer.current = setTimeout(popRoute, POP_AFTER_MS);
+  }, [height, popRoute, reduceMotion, translateY]);
 
   const pan = React.useMemo(
     () =>
@@ -104,8 +141,7 @@ export function SheetScaffold({ children }: { children: React.ReactNode }) {
     [dismiss, settle, translateY],
   );
 
-  const bottom = Math.max(insets.bottom, SHEET_GUTTER);
-  const maxH = height - insets.top - SHEET_GUTTER;
+  const maxH = height - insets.top;
   const bodyMax = Math.max(120, maxH - CHROME);
   const capped = bodyH > bodyMax;
 
@@ -122,7 +158,7 @@ export function SheetScaffold({ children }: { children: React.ReactNode }) {
 
   return (
     <SheetDismiss.Provider value={dismiss}>
-      <View style={styles.fill}>
+      <View style={styles.fill} pointerEvents={closing ? 'none' : 'auto'}>
         <Pressable
           style={styles.backdrop}
           onPress={dismiss}
@@ -133,20 +169,21 @@ export function SheetScaffold({ children }: { children: React.ReactNode }) {
           style={[
             styles.lift,
             {
-              left: SHEET_GUTTER,
-              right: SHEET_GUTTER,
-              bottom,
+              left: 0,
+              right: 0,
+              bottom: 0,
               maxHeight: maxH,
               transform: [{ translateY }],
+              shadowColor: ink,
             },
           ]}
         >
-          <View style={styles.card}>
+          <View style={[styles.card, { backgroundColor: bg }]}>
             <BackgroundTexture />
             <View style={styles.chrome} {...pan.panHandlers}>
-              <Chamfer fill={colors.button} style={styles.lip} />
+              <Chamfer fill={accent} style={styles.lip} />
               <View style={styles.handleHit}>
-                <Chamfer fill={colors.button} style={styles.handle} />
+                <Chamfer fill={accent} style={styles.handle} />
               </View>
             </View>
             <View
@@ -183,14 +220,12 @@ const styles = StyleSheet.create({
   },
   lift: {
     position: 'absolute',
-    shadowColor: colors.ink,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1,
     shadowRadius: 18,
     elevation: 12,
   },
   card: {
-    backgroundColor: colors.bg,
     overflow: 'hidden',
   },
   chrome: {

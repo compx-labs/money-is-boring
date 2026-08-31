@@ -1,7 +1,5 @@
 import { LAYOUT_DURATION_MS } from '@/lib/motion/layout';
 
-/** Inset so the sheared lip and shadow read against the page. */
-export const SHEET_GUTTER = 16;
 /** Magenta parallelogram on the top edge — same 2px weight as the nav stroke. */
 export const SHEET_LIP = 2;
 /** Grabber: a short sheared dash, not a rounded pill. */
@@ -14,7 +12,7 @@ export const SHEET_HANDLE_HEIGHT = 5;
  */
 export const sheetScreenOptions = {
   headerShown: false,
-  presentation: 'transparentModal' as const,
+  presentation: 'containedTransparentModal' as const,
   animation: 'none' as const,
   animationDuration: LAYOUT_DURATION_MS,
   gestureEnabled: false,

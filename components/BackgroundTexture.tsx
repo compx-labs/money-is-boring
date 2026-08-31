@@ -1,14 +1,14 @@
 import { StyleSheet, View } from 'react-native';
-import { colors } from '@/lib/theme';
+import { useChrome } from '@/hooks/useChrome';
 
-/** Plain off-white canvas. */
+/** Canvas fill — follows light/dark chrome. */
 export function BackgroundTexture() {
-  return <View pointerEvents="none" style={styles.fill} />;
+  const { bg } = useChrome();
+  return <View pointerEvents="none" style={[styles.fill, { backgroundColor: bg }]} />;
 }
 
 const styles = StyleSheet.create({
   fill: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.bg,
   },
 });

@@ -4,6 +4,7 @@ import { Redirect } from 'expo-router';
 import { AssetRow } from '@/components/AssetRow';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { SheetScaffold } from '@/components/SheetScaffold';
+import { useAccent } from '@/hooks/useAccent';
 import { useAsaIcons } from '@/hooks/useAsaIcons';
 import { useProvider } from '@/hooks/useProvider';
 import { useWalletBalances } from '@/hooks/useWalletBalances';
@@ -16,6 +17,7 @@ function AddAssetBody() {
   const { keys, accounts, key } = useProvider();
   const wallet = findWalletAccount(accounts, keys);
   const address = wallet ? algorandAddressFromKey(wallet.key) : '';
+  const { accent } = useAccent();
   const balances = useWalletBalances(address);
   const icons = useAsaIcons();
   const [busyId, setBusyId] = React.useState<number | null>(null);
@@ -47,7 +49,7 @@ function AddAssetBody() {
 
   return (
     <View style={styles.screen}>
-      <Text style={styles.title}>add asset</Text>
+      <Text style={[styles.title, { color: accent }]}>add asset</Text>
       <View style={styles.list}>
         {TOP_ASSETS.map((asset) => {
           const holding = balances.holdings.find((h) => h.id === asset.id);
@@ -86,7 +88,6 @@ const styles = StyleSheet.create({
     gap: 28,
   },
   title: {
-    color: colors.button,
     fontFamily: fonts.semibold,
     fontSize: 44,
   },
