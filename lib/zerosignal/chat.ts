@@ -1,6 +1,6 @@
 import type { KeyStoreAPI } from '@algorandfoundation/react-native-keystore';
 import { sha256 } from '@noble/hashes/sha2.js';
-import { AGENT_CANIX_TOOLS, runAgentTool } from '@/lib/canix/agent-tools';
+import { AGENT_SYSTEM_PROMPT, agentToolSchemas, runAgentTool } from '@/lib/agent/host';
 import { ZS_MODEL } from '@/lib/theme';
 import { b64Encode } from '@/lib/zerosignal/bytes';
 import { discoverZsNode, type ZsNode } from '@/lib/zerosignal/discover';
@@ -40,8 +40,6 @@ const MAX_OUTPUT = 2048;
 const MAX_PRICE_MICRO = 100_000;
 const RESERVE_MIN_TTL_SEC = 15;
 const MAX_TOOL_ROUNDS = 4;
-const SYSTEM_PROMPT =
-  'You are the in-wallet agent for Money is Boring, a simple Algorand wallet. Be concise. You can look up Canix opportunities and quotes and build unsigned Hay groups from Canix. You cannot broadcast anything yourself. Every Canix spend waits for AC2 — a yes on this phone — then this device signs user legs and submits. Canix never submits. Do not mention Amarok, spending limits, or a bypass API key. Never claim a swap or transfer landed unless approve_canix_spend returned a transaction id.';
 
 export type ChatTurn = { role: 'user' | 'assistant'; text: string };
 
@@ -431,7 +429,7 @@ async function sealedRound(input: {
 /**
  * One in-wallet chat turn. Speaks ZeroSignal's sealed pay-per-call protocol
  * from this device — no zs-proxy daemon, no always-on host, no relay.
- * Canix tools run on this device; each spend still waits for AC2.
+ * Tool schemas come from the agent host; this wallet signs and submits.
  */
 export async function sendAgentMessage(input: {
   store: Pick<KeyStoreAPI, 'sign'>;
@@ -440,18 +438,18 @@ export async function sendAgentMessage(input: {
   history: ChatTurn[];
   onStatus?: (step: string) => void;
   onDelta?: (text: string) => void;
-}): Promise<{ text: string; chargedMicro: number; canixMicro: bigint }> {
+}): Promise<{ text: string; chargedMicro: number; toolsMicro: bigint }> {
   const { store, keyId, address } = input;
   input.onStatus?.('finding a node');
   const node = await discoverZsNode(ZS_MODEL);
 
   const conversation: ResponseInput[] = [
-    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'system', content: AGENT_SYSTEM_PROMPT },
     ...input.history.map((t) => ({ role: t.role, content: t.text })),
   ];
 
   let chargedMicro = 0;
-  let canixMicro = 0n;
+  let toolsMicro = 0n;
   let lastText = '';
   let spoken = '';
 
@@ -464,7 +462,7 @@ export async function sendAgentMessage(input: {
       max_output_tokens: MAX_OUTPUT,
     };
     if (includeTools) {
-      requestBody.tools = AGENT_CANIX_TOOLS;
+      requestBody.tools = agentToolSchemas();
       requestBody.tool_choice = 'auto';
     }
     const body = new TextEncoder().encode(JSON.stringify(requestBody));
@@ -482,7 +480,7 @@ export async function sendAgentMessage(input: {
     const calls = [...acc.functionCalls.values()];
     if (calls.length === 0) {
       if (!acc.text) throw new Error('ZeroSignal returned no text');
-      return { text: spoken + acc.text, chargedMicro, canixMicro };
+      return { text: spoken + acc.text, chargedMicro, toolsMicro };
     }
 
     if (acc.text) spoken += `${acc.text}\n`;
@@ -495,14 +493,14 @@ export async function sendAgentMessage(input: {
       });
     }
     for (const call of calls) {
-      input.onStatus?.(`Canix · ${call.name}`);
+      input.onStatus?.(call.name);
       const result = await runAgentTool(call.name, call.arguments, {
         store,
         keyId,
         address,
         onStatus: input.onStatus,
       });
-      canixMicro += result.paidMicro;
+      toolsMicro += result.paidMicro;
       conversation.push({
         type: 'function_call_output',
         call_id: call.call_id,
@@ -512,5 +510,5 @@ export async function sendAgentMessage(input: {
   }
 
   if (!lastText && !spoken) throw new Error('ZeroSignal returned no text');
-  return { text: (spoken + lastText).trim(), chargedMicro, canixMicro };
+  return { text: (spoken + lastText).trim(), chargedMicro, toolsMicro };
 }

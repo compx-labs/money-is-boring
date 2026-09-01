@@ -20,14 +20,21 @@ import { useAsaIcons } from '@/hooks/useAsaIcons';
 import { useFiatTotal } from '@/hooks/useFiatTotal';
 import { algorandAddressFromKey, findWalletAccount } from '@/lib/keystore/wallet-account';
 import { truncateAddress } from '@/lib/algorand/balances';
-import { chamferCut, colors, fonts } from '@/lib/theme';
+import { colors, fonts } from '@/lib/theme';
+import { CUBE_VIEW } from '@/lib/cube/math';
 import { ICON_MORPH_MS } from '@/lib/motion/icon';
 import { Redirect, useRouter } from 'expo-router';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
 const ICON_HOLD_MS = ICON_MORPH_MS + 280;
-const ACTION_HEIGHT = 56;
+const CUBE_SIZE = 140;
+const CUBE_H = CUBE_SIZE * (CUBE_VIEW.height / CUBE_VIEW.width);
+const SCREEN_PAD = 28;
+const ACTION_HEIGHT = 48;
+const ACTION_WIDTH = 120;
+const ACTION_HANG = 70;
+const ACTION_GAP = 4;
 
 function formatFiat(value: number): string {
   return value.toLocaleString(undefined, {
@@ -40,12 +47,10 @@ function ActionButton({
   icon,
   label,
   onPress,
-  overlap = false,
 }: {
   icon: IconName;
   label: string;
   onPress: () => void;
-  overlap?: boolean;
 }) {
   const { accent, onAccent } = useAccent();
   return (
@@ -53,7 +58,7 @@ function ActionButton({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={[styles.actionPress, overlap && styles.actionOverlap]}
+      style={styles.actionPress}
     >
       <Chamfer fill={accent} style={styles.actionFace} contentStyle={styles.actionContent}>
         <MorphIcon name={icon} size={24} color={onAccent} bounce={icon === 'checkmark'} />
@@ -157,30 +162,6 @@ export default function Home() {
 
   return (
     <View style={styles.root}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <View ref={pillRef} collapsable={false} style={styles.addressWrap}>
-          <HapticPressable
-            onPress={onOpenMenu}
-            onLongPress={onCopy}
-            accessibilityRole="button"
-            accessibilityLabel={menuLabel}
-            accessibilityHint="Opens account menu. Press and hold to copy address."
-          >
-            <Chamfer fill={accent} contentStyle={styles.addressInner}>
-              <Text style={[styles.address, { color: onAccent }]} numberOfLines={1}>
-                {pillLabel}
-              </Text>
-              <MorphIcon
-                name={copied ? 'checkmark' : menuOpen ? 'chevron-up' : 'chevron-down'}
-                size={18}
-                color={onAccent}
-                bounce={copied}
-              />
-            </Chamfer>
-          </HapticPressable>
-        </View>
-      </View>
-
       <AccountMenu
         visible={menuOpen}
         anchor={menuAnchor}
@@ -190,45 +171,66 @@ export default function Home() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.screen, { paddingBottom: 24 }]}
+        contentContainerStyle={[styles.screen, { paddingTop: insets.top + 12, paddingBottom: 24 }]}
       >
-        <View style={styles.hero}>
-          <SittingCube size={140} scrollFriendly />
-          <View
-            style={styles.fiat}
-            accessible
-            accessibilityRole="text"
-            accessibilityLabel={
-              fiatTotal == null ? 'Total loading' : `Total ${formatFiat(fiatTotal)} dollars`
-            }
-          >
-            <Text style={[styles.fiatDollar, { color: accent }]}>$</Text>
-            <RollingNumber
-              value={fiatTotal}
-              format={formatFiat}
-              style={[styles.fiatAmount, { color: accent }]}
+        <View style={styles.heroStage}>
+          <View style={styles.hero}>
+            <SittingCube size={CUBE_SIZE} scrollFriendly />
+            <View ref={pillRef} collapsable={false} style={styles.addressWrap}>
+              <HapticPressable
+                onPress={onOpenMenu}
+                onLongPress={onCopy}
+                accessibilityRole="button"
+                accessibilityLabel={menuLabel}
+                accessibilityHint="Opens account menu. Press and hold to copy address."
+              >
+                <Chamfer fill={accent} contentStyle={styles.addressInner}>
+                  <Text style={[styles.address, { color: onAccent }]} numberOfLines={1}>
+                    {pillLabel}
+                  </Text>
+                  <MorphIcon
+                    name={copied ? 'checkmark' : menuOpen ? 'chevron-up' : 'chevron-down'}
+                    size={18}
+                    color={onAccent}
+                    bounce={copied}
+                  />
+                </Chamfer>
+              </HapticPressable>
+            </View>
+            <View
+              style={styles.fiat}
+              accessible
+              accessibilityRole="text"
+              accessibilityLabel={
+                fiatTotal == null ? 'Total loading' : `Total ${formatFiat(fiatTotal)} dollars`
+              }
+            >
+              <Text style={[styles.fiatDollar, { color: accent }]}>$</Text>
+              <RollingNumber
+                value={fiatTotal}
+                format={formatFiat}
+                style={[styles.fiatAmount, { color: accent }]}
+              />
+            </View>
+          </View>
+
+          <View style={styles.actions} pointerEvents="box-none">
+            <ActionButton
+              icon="swap-horizontal"
+              label="Swap"
+              onPress={() => router.push('/swap')}
+            />
+            <ActionButton
+              icon={sent ? 'checkmark' : 'arrow-forward'}
+              label="Send"
+              onPress={onSend}
+            />
+            <ActionButton
+              icon="arrow-back"
+              label="Receive"
+              onPress={() => router.push('/receive')}
             />
           </View>
-        </View>
-
-        <View style={styles.actions}>
-          <ActionButton
-            icon="swap-horizontal"
-            label="Swap"
-            onPress={() => router.push('/swap')}
-          />
-          <ActionButton
-            icon={sent ? 'checkmark' : 'arrow-up'}
-            label="Send"
-            onPress={onSend}
-            overlap
-          />
-          <ActionButton
-            icon="arrow-down"
-            label="Receive"
-            onPress={() => router.push('/receive')}
-            overlap
-          />
         </View>
 
         <View style={styles.balances}>
@@ -254,11 +256,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'transparent',
   },
-  header: {
-    paddingHorizontal: 28,
-    paddingBottom: 8,
-    alignItems: 'flex-start',
-  },
   addressWrap: {
     maxWidth: '70%',
   },
@@ -282,9 +279,12 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     backgroundColor: 'transparent',
     alignItems: 'center',
-    paddingHorizontal: 28,
-    paddingTop: 12,
+    paddingHorizontal: SCREEN_PAD,
     gap: 28,
+  },
+  heroStage: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
   },
   hero: {
     alignItems: 'center',
@@ -333,25 +333,26 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   actions: {
-    alignSelf: 'stretch',
-    flexDirection: 'row',
+    position: 'absolute',
+    left: -SCREEN_PAD - ACTION_HANG,
+    top: CUBE_H / 2,
+    gap: ACTION_GAP,
+    zIndex: 2,
   },
   actionPress: {
-    flex: 1,
-  },
-  actionOverlap: {
-    marginLeft: -chamferCut(Number.POSITIVE_INFINITY, ACTION_HEIGHT),
+    width: ACTION_WIDTH,
   },
   actionFace: {
     height: ACTION_HEIGHT,
-    alignSelf: 'stretch',
+    width: ACTION_WIDTH,
   },
   actionContent: {
     flex: 1,
     width: '100%',
     height: '100%',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'center',
+    paddingRight: 6,
   },
   error: {
     color: colors.muted,

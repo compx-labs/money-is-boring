@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { Chamfer } from '@/components/Chamfer';
 import { HapticPressable } from '@/components/HapticPressable';
+import { useSheetPalette } from '@/components/SheetScaffold';
 import { useAccent } from '@/hooks/useAccent';
 import { chamferCut, fonts } from '@/lib/theme';
 
@@ -27,6 +28,9 @@ export function ChamferButton({
   style?: StyleProp<ViewStyle>;
 }) {
   const { accent, onAccent } = useAccent();
+  const sheet = useSheetPalette();
+  const fill = sheet?.ink ?? accent;
+  const labelColor = sheet ? accent : onAccent;
   return (
     <HapticPressable
       onPress={onPress}
@@ -41,12 +45,12 @@ export function ChamferButton({
       ]}
     >
       <Chamfer
-        fill={accent}
+        fill={fill}
         style={compact ? styles.compactFace : styles.face}
         contentStyle={compact ? styles.compactInner : styles.inner}
       >
         <Text
-          style={[compact ? styles.compactLabel : styles.label, { color: onAccent }]}
+          style={[compact ? styles.compactLabel : styles.label, { color: labelColor }]}
           numberOfLines={1}
         >
           {label}

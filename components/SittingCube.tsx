@@ -14,6 +14,8 @@ const REST_EPS = 0.002;
 const POKE_SQUASH_VEL = -7.5;
 const POKE_YAW_VEL = 2.4;
 const DT_CAP = 1 / 30;
+/** One slow turn around Y, in seconds. */
+const SPIN_PERIOD = 12;
 
 type Pose = {
   yaw: number;
@@ -48,16 +50,42 @@ function atRest(p: Pose): boolean {
   );
 }
 
+function CubeSvg({
+  width,
+  height,
+  faces,
+}: {
+  width: number;
+  height: number;
+  faces: ReturnType<typeof projectCube>;
+}) {
+  return (
+    <Svg
+      width={width}
+      height={height}
+      viewBox={`0 0 ${CUBE_VIEW.width} ${CUBE_VIEW.height}`}
+      pointerEvents="none"
+    >
+      {faces.map((face) => (
+        <Polygon key={face.id} points={face.points} fill={face.fill} />
+      ))}
+    </Svg>
+  );
+}
+
 /**
  * Isometric cube you can spin (horizontal drag) and poke (tap).
  * Springs back to the sitting pose. SVG projection, no GL.
+ * `spin` is a non-interactive slow Y-axis turn for loading.
  */
 export function SittingCube({
   size = 160,
   scrollFriendly = false,
+  spin = false,
 }: {
   size?: number;
   scrollFriendly?: boolean;
+  spin?: boolean;
 }) {
   const w = size;
   const h = size * (CUBE_VIEW.height / CUBE_VIEW.width);
@@ -148,6 +176,23 @@ export function SittingCube({
     paint();
   }, [paint, reduceMotion, stopLoop]);
 
+  React.useEffect(() => {
+    if (!spin || reduceMotion) return;
+    stopLoop();
+    pose.current = { ...REST };
+    lastTs.current = null;
+    const step = (ts: number) => {
+      const prev = lastTs.current;
+      lastTs.current = ts;
+      const dt = prev == null ? 1 / 60 : Math.min((ts - prev) / 1000, DT_CAP);
+      pose.current.yaw += ((Math.PI * 2) / SPIN_PERIOD) * dt;
+      paint();
+      raf.current = requestAnimationFrame(step);
+    };
+    raf.current = requestAnimationFrame(step);
+    return () => stopLoop();
+  }, [paint, reduceMotion, spin, stopLoop]);
+
   const poke = React.useCallback(() => {
     tick();
     if (reduceMotion) return;
@@ -204,6 +249,21 @@ export function SittingCube({
     return Gesture.Exclusive(pan, tap);
   }, [paint, poke, reduceMotion, scrollFriendly, startLoop]);
 
+  const mark = <CubeSvg width={w} height={h} faces={faces} />;
+
+  if (spin) {
+    return (
+      <View
+        style={[styles.hit, { width: w, height: h }]}
+        accessible
+        accessibilityRole="image"
+        accessibilityLabel="Sitting cube"
+      >
+        {mark}
+      </View>
+    );
+  }
+
   return (
     <GestureHandlerRootView style={{ width: w, height: h }}>
       <GestureDetector gesture={gesture}>
@@ -219,16 +279,7 @@ export function SittingCube({
             if (event.nativeEvent.actionName === 'activate') poke();
           }}
         >
-          <Svg
-            width={w}
-            height={h}
-            viewBox={`0 0 ${CUBE_VIEW.width} ${CUBE_VIEW.height}`}
-            pointerEvents="none"
-          >
-            {faces.map((face) => (
-              <Polygon key={face.id} points={face.points} fill={face.fill} />
-            ))}
-          </Svg>
+          {mark}
         </View>
       </GestureDetector>
     </GestureHandlerRootView>

@@ -1,6 +1,9 @@
 import React from 'react';
 import {
-  Alert,
+  InputAccessoryView,
+  Keyboard,
+  Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -10,10 +13,12 @@ import { Redirect, useRouter } from 'expo-router';
 import { HapticPressable } from '@/components/HapticPressable';
 import { Chamfer } from '@/components/Chamfer';
 import { ChamferButton } from '@/components/ChamferButton';
+import { MorphIcon } from '@/components/MorphIcon';
 import { RollingNumber } from '@/components/RollingNumber';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { SheetScaffold, useSheetDismiss } from '@/components/SheetScaffold';
 import { useAccent } from '@/hooks/useAccent';
+import { useChrome } from '@/hooks/useChrome';
 import { useProvider } from '@/hooks/useProvider';
 import { useWalletBalances } from '@/hooks/useWalletBalances';
 import { algorandAddressFromKey, findWalletAccount } from '@/lib/keystore/wallet-account';
@@ -25,9 +30,10 @@ import {
 } from '@/lib/algorand/balances';
 import { executeHaySwap } from '@/lib/hay/execute';
 import { quoteHaySwap, type HayQuote } from '@/lib/hay/router';
-import { colors, fonts, USDC_ASA_ID } from '@/lib/theme';
+import { fonts, USDC_ASA_ID } from '@/lib/theme';
 
 const DEBOUNCE_MS = 450;
+const AMOUNT_ACCESSORY_ID = 'swap-amount-done';
 
 function formatQuoted(value: number, decimals: number): string {
   if (value === 0) return '0';
@@ -42,21 +48,15 @@ function mergeAssets(holdings: Holding[]): Holding[] {
   return [...byId.values()];
 }
 
-function SwapHomeBack() {
-  const dismiss = useSheetDismiss();
-  return (
-    <HapticPressable onPress={dismiss} accessibilityRole="button" accessibilityLabel="Back">
-      <Text style={styles.back}>home</Text>
-    </HapticPressable>
-  );
-}
+
 
 export default function Swap() {
   const router = useRouter();
   const { keys, accounts, key } = useProvider();
   const wallet = findWalletAccount(accounts, keys);
   const address = wallet ? algorandAddressFromKey(wallet.key) : '';
-  const { accent, surface, onAccent } = useAccent();
+  const { accent } = useAccent();
+  const { bg } = useChrome();
   const balances = useWalletBalances(address);
   const assets = mergeAssets(balances.holdings);
 
@@ -67,6 +67,7 @@ export default function Swap() {
   const [quoteError, setQuoteError] = React.useState('');
   const [quoting, setQuoting] = React.useState(false);
   const [busy, setBusy] = React.useState('');
+  const [amountFocused, setAmountFocused] = React.useState(false);
 
   const fromAsset = assets.find((a) => a.id === fromId) ?? assets[0];
   const toAsset = assets.find((a) => a.id === toId);
@@ -124,6 +125,7 @@ export default function Swap() {
 
   const onSwap = async () => {
     if (!quote || busy) return;
+    Keyboard.dismiss();
     setBusy('swapping');
     try {
       await executeHaySwap({
@@ -133,11 +135,9 @@ export default function Swap() {
         quote,
         onStatus: setBusy,
       });
-      Alert.alert('Swap submitted', 'Hay routed it. Balances will refresh on home.', [
-        { text: 'ok', onPress: () => router.replace('/home') },
-      ]);
+      router.replace('/home');
     } catch (e) {
-      Alert.alert('Swap failed', e instanceof Error ? e.message : 'Unknown error');
+      setQuoteError(e instanceof Error ? e.message : 'swap failed');
     } finally {
       setBusy('');
     }
@@ -152,66 +152,100 @@ export default function Swap() {
   );
 
   return (
-    <SheetScaffold>
-      <View style={styles.screen}>
-        <SwapHomeBack />
+    <>
+      <SheetScaffold>
+        <Pressable style={styles.screen} onPress={Keyboard.dismiss} accessible={false}>
 
-        <Text style={styles.title}>swap</Text>
+          <Text style={[styles.title, { color: bg }]}>swap</Text>
 
-        <Chamfer fill={surface} style={styles.card} contentStyle={styles.cardInner}>
-          <Text style={styles.label}>from</Text>
-          <HapticPressable onPress={() => pick(fromId, toId, setFromId)} accessibilityRole="button">
-            <Text style={styles.asset}>{fromAsset?.unit ?? 'ALGO'}</Text>
-          </HapticPressable>
-          <TextInput
-            value={amount}
-            onChangeText={setAmount}
-            keyboardType="decimal-pad"
-            placeholder="0"
-            placeholderTextColor={colors.line}
-            style={styles.amount}
-            accessibilityLabel="Swap amount"
-          />
-          <View style={styles.balanceRow}>
-            <RollingNumber value={fromAsset?.amount ?? 0} format={formatAmount} style={styles.balance} />
-            <Text style={styles.balance}> {fromAsset?.unit}</Text>
-          </View>
-        </Chamfer>
-
-        <HapticPressable onPress={invert} accessibilityRole="button" accessibilityLabel="Swap direction" style={styles.flip}>
-          <Chamfer fill={accent} contentInset={false} style={styles.flipFace} contentStyle={styles.flipInner}>
-            <Text style={[styles.flipLabel, { color: onAccent }]}>↕</Text>
+          <Chamfer
+            fill="none"
+            stroke={bg}
+            strokeWidth={2}
+            style={styles.card}
+            contentStyle={styles.cardInner}
+          >
+            <Text style={[styles.label, { color: bg }]}>from</Text>
+            <HapticPressable onPress={() => pick(fromId, toId, setFromId)} accessibilityRole="button">
+              <Text style={[styles.asset, { color: bg }]}>{fromAsset?.unit ?? 'ALGO'}</Text>
+            </HapticPressable>
+            <TextInput
+              value={amount}
+              onChangeText={setAmount}
+              keyboardType="decimal-pad"
+              returnKeyType="done"
+              enterKeyHint="done"
+              blurOnSubmit
+              inputAccessoryViewID={Platform.OS === 'ios' ? AMOUNT_ACCESSORY_ID : undefined}
+              onFocus={() => setAmountFocused(true)}
+              onBlur={() => setAmountFocused(false)}
+              onSubmitEditing={Keyboard.dismiss}
+              placeholder="0"
+              placeholderTextColor={bg}
+              style={[styles.amount, { color: bg }]}
+              accessibilityLabel="Swap amount"
+            />
+            <View style={styles.balanceRow}>
+              <RollingNumber value={fromAsset?.amount ?? 0} format={formatAmount} style={[styles.balance, { color: bg }]} />
+              <Text style={[styles.balance, { color: bg }]}> {fromAsset?.unit}</Text>
+            </View>
           </Chamfer>
-        </HapticPressable>
 
-        <Chamfer fill={surface} style={styles.card} contentStyle={styles.cardInner}>
-          <Text style={styles.label}>to</Text>
-          <HapticPressable onPress={() => pick(toId, fromId, setToId)} accessibilityRole="button">
-            <Text style={styles.asset}>{outLabel}</Text>
+          <HapticPressable onPress={invert} accessibilityRole="button" accessibilityLabel="Swap direction" style={styles.flip}>
+            <Chamfer fill={bg} contentInset={false} style={styles.flipFace} contentStyle={styles.flipInner}>
+              <MorphIcon name="swap-vertical" size={20} color={accent} />
+            </Chamfer>
           </HapticPressable>
-          <RollingNumber
-            value={quoteValue}
-            format={formatQuotedAmount}
-            placeholder={quoting ? '…' : '—'}
-            style={styles.quoted}
+
+          <Chamfer
+            fill="none"
+            stroke={bg}
+            strokeWidth={2}
+            style={styles.card}
+            contentStyle={styles.cardInner}
+          >
+            <Text style={[styles.label, { color: bg }]}>to</Text>
+            <HapticPressable onPress={() => pick(toId, fromId, setToId)} accessibilityRole="button">
+              <Text style={[styles.asset, { color: bg }]}>{outLabel}</Text>
+            </HapticPressable>
+            <RollingNumber
+              value={quoteValue}
+              format={formatQuotedAmount}
+              placeholder={quoting ? '…' : '—'}
+              style={[styles.quoted, { color: bg }]}
+            />
+          </Chamfer>
+
+          {quote?.userPriceImpact != null ? (
+            <Text style={[styles.meta, { color: bg }]}>impact {quote.userPriceImpact.toFixed(2)}%</Text>
+          ) : null}
+          <Text style={[styles.meta, { color: bg }]}>1% slippage</Text>
+          {quoteError ? <Text style={[styles.error, { color: bg }]}>{quoteError}</Text> : null}
+
+          <ChamferButton
+            label={busy || 'swap'}
+            onPress={onSwap}
+            disabled={!quote || !!busy}
+            accessibilityLabel="Confirm swap"
+            style={styles.swapAction}
           />
-        </Chamfer>
-
-        {quote?.userPriceImpact != null ? (
-          <Text style={styles.meta}>impact {quote.userPriceImpact.toFixed(2)}%</Text>
-        ) : null}
-        <Text style={styles.meta}>Hay router · 1% slip</Text>
-        {quoteError ? <Text style={styles.error}>{quoteError}</Text> : null}
-
-        <ChamferButton
-          label={busy || 'swap'}
-          onPress={onSwap}
-          disabled={!quote || !!busy}
-          accessibilityLabel="Confirm swap"
-          style={styles.swapAction}
-        />
-      </View>
-    </SheetScaffold>
+        </Pressable>
+      </SheetScaffold>
+      {Platform.OS === 'ios' && amountFocused ? (
+        <InputAccessoryView nativeID={AMOUNT_ACCESSORY_ID} backgroundColor={accent}>
+          <View style={styles.accessory}>
+            <Pressable
+              onPress={Keyboard.dismiss}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss keyboard"
+            >
+              <Text style={[styles.accessoryDone, { color: bg }]}>done</Text>
+            </Pressable>
+          </View>
+        </InputAccessoryView>
+      ) : null}
+    </>
   );
 }
 
@@ -220,52 +254,46 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     paddingHorizontal: 28,
     paddingTop: 8,
-    paddingBottom: 24,
-    gap: 20,
+    paddingBottom: 20,
+    gap: 12,
   },
   back: {
-    color: colors.muted,
     fontFamily: fonts.regular,
-    fontSize: 26,
+    fontSize: 18,
   },
   title: {
-    color: colors.text,
     fontFamily: fonts.semibold,
-    fontSize: 44,
+    fontSize: 32,
   },
   card: {
     alignSelf: 'stretch',
   },
   cardInner: {
-    paddingLeft: 16,
-    paddingRight: 16,
-    paddingVertical: 18,
-    gap: 8,
+    paddingLeft: 12,
+    paddingRight: 12,
+    paddingVertical: 12,
+    gap: 4,
   },
   label: {
-    color: colors.muted,
     fontFamily: fonts.regular,
-    fontSize: 26,
-    letterSpacing: 2,
+    fontSize: 13,
+    letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
   asset: {
-    color: colors.text,
     fontFamily: fonts.semibold,
-    fontSize: 32,
+    fontSize: 20,
   },
   amount: {
-    color: colors.text,
     fontFamily: fonts.semibold,
-    fontSize: 40,
+    fontSize: 32,
+    lineHeight: 36,
     padding: 0,
-    paddingVertical: 4,
   },
   quoted: {
-    color: colors.text,
     fontFamily: fonts.semibold,
-    fontSize: 40,
-    lineHeight: 48,
+    fontSize: 32,
+    lineHeight: 36,
     fontVariant: ['tabular-nums'],
   },
   balanceRow: {
@@ -273,18 +301,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   balance: {
-    color: colors.muted,
     fontFamily: fonts.regular,
-    fontSize: 26,
-    lineHeight: 32,
+    fontSize: 15,
+    lineHeight: 20,
     fontVariant: ['tabular-nums'],
   },
   flip: {
     alignSelf: 'center',
+    zIndex: 2,
+    marginVertical: -20,
   },
   flipFace: {
-    width: 48,
-    height: 48,
+    width: 40,
+    height: 40,
   },
   flipInner: {
     flex: 1,
@@ -293,21 +322,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  flipLabel: {
-    fontFamily: fonts.bold,
-    fontSize: 24,
-  },
   meta: {
-    color: colors.muted,
     fontFamily: fonts.regular,
-    fontSize: 26,
+    fontSize: 14,
   },
   error: {
-    color: colors.muted,
     fontFamily: fonts.regular,
-    fontSize: 26,
+    fontSize: 15,
   },
   swapAction: {
-    marginTop: 12,
+    marginTop: 4,
+  },
+  accessory: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  accessoryDone: {
+    fontFamily: fonts.semibold,
+    fontSize: 17,
   },
 });

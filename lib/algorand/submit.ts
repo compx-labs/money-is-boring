@@ -112,3 +112,44 @@ export async function submitSignedGroup(blobs: Uint8Array[], txid: string) {
   await client.sendRawTransaction(blobs).do();
   await waitForConfirmation(client, txid, 16);
 }
+
+export type WalletGroupMember = {
+  index: number;
+  unsigned: Uint8Array;
+  signed?: Uint8Array;
+  signer: 'user' | 'other';
+};
+
+export type WalletGroup = {
+  members: WalletGroupMember[];
+  userSignIndexes: number[];
+};
+
+/** Sign this wallet's legs, keep pre-signed members, submit locally. */
+export async function signAndSubmitWalletGroup(input: {
+  store: Pick<KeyStoreAPI, 'sign'>;
+  keyId: string;
+  address: string;
+  group: WalletGroup;
+}): Promise<{ txid: string }> {
+  const { store, keyId, address, group } = input;
+  const blobs: Uint8Array[] = [];
+  let txid = '';
+
+  for (const member of group.members) {
+    const needsUser = group.userSignIndexes.includes(member.index) || member.signer === 'user';
+    if (!needsUser) {
+      if (!member.signed) throw new Error('Group member is not for this wallet and is unsigned');
+      blobs.push(member.signed);
+      continue;
+    }
+    const decoded = decodeUnsignedTransaction(member.unsigned);
+    const sig = await store.sign(keyId, decoded.bytesToSign());
+    blobs.push(decoded.attachSignature(address, sig));
+    if (!txid) txid = decoded.txID();
+  }
+
+  if (!txid) throw new Error('Nothing for this device to sign');
+  await submitSignedGroup(blobs, txid);
+  return { txid };
+}

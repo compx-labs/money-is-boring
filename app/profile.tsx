@@ -1,7 +1,5 @@
 import React from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -35,7 +33,7 @@ function ProfileBody() {
   const address = wallet ? algorandAddressFromKey(wallet.key) : '';
   const nickname = useNickname(address);
   const theme = useAccent();
-  const { bg } = useChrome();
+  const { bg, ink } = useChrome();
   const mode = useColorMode();
   const [copied, setCopied] = React.useState(false);
   const [editing, setEditing] = React.useState(false);
@@ -69,7 +67,7 @@ function ProfileBody() {
 
   return (
     <View style={styles.screen}>
-      <Text style={[styles.title, { color: theme.accent }]}>profile</Text>
+      <Text style={[styles.title, { color: bg }]}>profile</Text>
       <HapticPressable
         onPress={onCopy}
         accessibilityRole="button"
@@ -77,19 +75,19 @@ function ProfileBody() {
         style={styles.addressPress}
       >
         <Chamfer
-          fill={bg}
-          stroke={theme.accent}
+          fill="none"
+          stroke={bg}
           strokeWidth={2}
           style={styles.addressFace}
           contentStyle={styles.addressInner}
         >
-          <Text style={[styles.address, { color: theme.accent }]} numberOfLines={1}>
+          <Text style={[styles.address, { color: bg }]} numberOfLines={1}>
             {address}
           </Text>
           <MorphIcon
             name={copied ? 'checkmark' : 'copy-outline'}
             size={22}
-            color={theme.accent}
+            color={bg}
             bounce={copied}
           />
         </Chamfer>
@@ -102,14 +100,14 @@ function ProfileBody() {
           accessibilityRole="text"
           accessibilityLabel={`Nickname: ${nickname}`}
         >
-          <Text style={[styles.nicknameLabel, { color: theme.accent }]}>Nickname:</Text>
-          <Text style={[styles.nickname, { color: theme.accent }]}>{nickname}</Text>
+          <Text style={[styles.nicknameLabel, { color: bg }]}>Nickname:</Text>
+          <Text style={[styles.nickname, { color: bg }]}>{nickname}</Text>
         </View>
       ) : null}
 
       {editing ? (
         <View style={styles.composer}>
-          <Chamfer fill={theme.surface} style={styles.inputFace} contentStyle={styles.inputInner}>
+          <Chamfer fill={bg} style={styles.inputFace} contentStyle={styles.inputInner}>
             <TextInput
               value={draft}
               onChangeText={setDraft}
@@ -120,7 +118,7 @@ function ProfileBody() {
               autoCorrect={false}
               returnKeyType="done"
               onSubmitEditing={onSave}
-              style={styles.input}
+              style={[styles.input, { color: theme.accent }]}
               accessibilityLabel="Nickname"
             />
           </Chamfer>
@@ -134,7 +132,7 @@ function ProfileBody() {
       )}
 
       <View style={styles.themeBlock}>
-        <Text style={[styles.themeLabel, { color: theme.accent }]}>Select theme</Text>
+        <Text style={[styles.themeLabel, { color: bg }]}>Select theme</Text>
         <View style={styles.swatchRow}>
           {ACCENT_IDS.map((id) => {
             const option = THEMES[id];
@@ -151,7 +149,7 @@ function ProfileBody() {
               >
                 <Chamfer
                   fill={bg}
-                  stroke={selected ? colors.button : 'transparent'}
+                  stroke={selected ? ink : 'transparent'}
                   strokeWidth={3}
                   contentInset={false}
                   style={styles.swatchOuter}
@@ -178,21 +176,13 @@ function ProfileBody() {
 
 export default function Profile() {
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <SheetScaffold>
-        <ProfileBody />
-      </SheetScaffold>
-    </KeyboardAvoidingView>
+    <SheetScaffold>
+      <ProfileBody />
+    </SheetScaffold>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
   screen: {
     paddingHorizontal: 28,
     paddingTop: 8,
@@ -283,7 +273,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   input: {
-    color: colors.text,
     fontFamily: fonts.regular,
     fontSize: 17,
     padding: 0,

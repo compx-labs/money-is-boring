@@ -1,5 +1,5 @@
 export const colors = {
-  bg: '#f4f3ef',
+  bg: '#f2f2f2',
   cream: '#f8d2c0',
   peach: '#f8d2c0',
   surface: '#ffd6ef',
@@ -8,6 +8,7 @@ export const colors = {
   cubeRight: '#787878',
   text: '#0066ff',
   muted: '#4d94ff',
+  dim: '#9a9a9a',
   ink: '#1a1a1a',
   line: '#7eb6ff',
   button: '#ff1f8f',
@@ -24,8 +25,8 @@ export type Chrome = {
 };
 
 export const CHROME: Record<ColorMode, Chrome> = {
-  light: { bg: '#f4f3ef', ink: '#1a1a1a', tabFill: '#ffffff' },
-  dark: { bg: '#141413', ink: '#f4f3ef', tabFill: '#1c1b19' },
+  light: { bg: '#f2f2f2', ink: '#1a1a1a', tabFill: '#ffffff' },
+  dark: { bg: '#141413', ink: '#f2f2f2', tabFill: '#1c1b19' },
 };
 
 export function isColorMode(value: string): value is ColorMode {

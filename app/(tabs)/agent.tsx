@@ -79,9 +79,9 @@ export default function Agent() {
       prepareLayoutSpring();
       setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, text: reply.text } : m)));
       const zs = reply.chargedMicro > 0 ? `ZeroSignal · ${fromBaseUnits(String(reply.chargedMicro), 6)} USDC` : '';
-      const canix =
-        reply.canixMicro > 0n ? `Canix · ${fromBaseUnits(String(reply.canixMicro), 6)} USDC` : '';
-      setResult([zs, canix].filter(Boolean).join(' · '));
+      const tools =
+        reply.toolsMicro > 0n ? `tools · ${fromBaseUnits(String(reply.toolsMicro), 6)} USDC` : '';
+      setResult([zs, tools].filter(Boolean).join(' · '));
     } catch (e) {
       prepareLayoutSpring();
       setMessages((prev) => prev.filter((m) => m.id !== assistantId && m.id !== user.id));
@@ -141,7 +141,7 @@ export default function Agent() {
               value={draft}
               onChangeText={setDraft}
               placeholder="message"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={colors.button}
               editable={!busy}
               multiline
               style={styles.input}

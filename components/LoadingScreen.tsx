@@ -1,11 +1,10 @@
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { colors, fonts } from '@/lib/theme';
+import { StyleSheet, View } from 'react-native';
+import { SittingCube } from '@/components/SittingCube';
 
 export function LoadingScreen() {
   return (
     <View style={styles.wrap}>
-      <ActivityIndicator color={colors.cubeTop} />
-      <Text style={styles.label}>unlocking</Text>
+      <SittingCube size={140} spin />
     </View>
   );
 }
@@ -16,13 +15,5 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
-  },
-  label: {
-    color: colors.muted,
-    fontFamily: fonts.regular,
-    fontSize: 28,
-    letterSpacing: 4,
-    textTransform: 'uppercase',
   },
 });

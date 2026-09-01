@@ -2,7 +2,6 @@ import React from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SheetScaffold } from '@/components/SheetScaffold';
-import { useAccent } from '@/hooks/useAccent';
 import { useChrome } from '@/hooks/useChrome';
 import { getCachedMerchant, loadX402Merchant, type X402Merchant } from '@/lib/x402/merchants';
 import { colors, fonts } from '@/lib/theme';
@@ -29,18 +28,17 @@ function formatSettles(value: number): string {
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
-  const { ink } = useChrome();
+  const { bg } = useChrome();
   return (
     <View style={styles.stat} accessible accessibilityRole="text" accessibilityLabel={`${label} ${value}`}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={[styles.statValue, { color: ink }]}>{value}</Text>
+      <Text style={[styles.statLabel, { color: bg }]}>{label}</Text>
+      <Text style={[styles.statValue, { color: bg }]}>{value}</Text>
     </View>
   );
 }
 
 function MerchantBody({ merchant }: { merchant: X402Merchant }) {
-  const { accent } = useAccent();
-  const { ink } = useChrome();
+  const { bg } = useChrome();
   const [logoFailed, setLogoFailed] = React.useState(false);
 
   return (
@@ -57,13 +55,13 @@ function MerchantBody({ merchant }: { merchant: X402Merchant }) {
             />
           )}
         </View>
-        <Text style={[styles.name, { color: ink }]}>{merchant.name}</Text>
+        <Text style={[styles.name, { color: bg }]}>{merchant.name}</Text>
       </View>
 
-      <Text style={[styles.description, { color: accent }]}>{merchant.description}</Text>
+      <Text style={[styles.description, { color: bg }]}>{merchant.description}</Text>
 
       {merchant.url ? (
-        <Text style={[styles.url, { color: accent }]} numberOfLines={1}>
+        <Text style={[styles.url, { color: bg }]} numberOfLines={1}>
           {merchant.url}
         </Text>
       ) : null}
@@ -92,6 +90,7 @@ export default function MerchantSheet() {
   const cached = id ? getCachedMerchant(id) : undefined;
   const [merchant, setMerchant] = React.useState<X402Merchant | null>(cached ?? null);
   const [error, setError] = React.useState(false);
+  const { bg } = useChrome();
 
   React.useEffect(() => {
     if (!id || cached) return;
@@ -114,7 +113,7 @@ export default function MerchantSheet() {
         <MerchantBody merchant={merchant} />
       ) : (
         <View style={styles.screen}>
-          <Text style={styles.meta}>{error ? 'couldn’t load merchant' : 'loading'}</Text>
+          <Text style={[styles.meta, { color: bg }]}>{error ? 'couldn’t load merchant' : 'loading'}</Text>
         </View>
       )}
     </SheetScaffold>
@@ -182,7 +181,6 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   statLabel: {
-    color: colors.muted,
     fontFamily: fonts.regular,
     fontSize: 18,
     lineHeight: 24,
@@ -194,7 +192,6 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   meta: {
-    color: colors.muted,
     fontFamily: fonts.regular,
     fontSize: 26,
     lineHeight: 36,

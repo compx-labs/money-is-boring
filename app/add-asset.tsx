@@ -4,20 +4,20 @@ import { Redirect } from 'expo-router';
 import { AssetRow } from '@/components/AssetRow';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { SheetScaffold } from '@/components/SheetScaffold';
-import { useAccent } from '@/hooks/useAccent';
+import { useChrome } from '@/hooks/useChrome';
 import { useAsaIcons } from '@/hooks/useAsaIcons';
 import { useProvider } from '@/hooks/useProvider';
 import { useWalletBalances } from '@/hooks/useWalletBalances';
 import { TOP_ASSETS } from '@/lib/algorand/assets';
 import { algorandAddressFromKey, findWalletAccount } from '@/lib/keystore/wallet-account';
 import { signAndSubmitAssetOptIn } from '@/lib/algorand/submit';
-import { colors, fonts } from '@/lib/theme';
+import { fonts } from '@/lib/theme';
 
 function AddAssetBody() {
   const { keys, accounts, key } = useProvider();
   const wallet = findWalletAccount(accounts, keys);
   const address = wallet ? algorandAddressFromKey(wallet.key) : '';
-  const { accent } = useAccent();
+  const { bg } = useChrome();
   const balances = useWalletBalances(address);
   const icons = useAsaIcons();
   const [busyId, setBusyId] = React.useState<number | null>(null);
@@ -49,7 +49,7 @@ function AddAssetBody() {
 
   return (
     <View style={styles.screen}>
-      <Text style={[styles.title, { color: accent }]}>add asset</Text>
+      <Text style={[styles.title, { color: bg }]}>add asset</Text>
       <View style={styles.list}>
         {TOP_ASSETS.map((asset) => {
           const holding = balances.holdings.find((h) => h.id === asset.id);
@@ -67,7 +67,7 @@ function AddAssetBody() {
           );
         })}
       </View>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <Text style={[styles.error, { color: bg }]}>{error}</Text> : null}
     </View>
   );
 }
@@ -97,7 +97,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   error: {
-    color: colors.muted,
     fontFamily: fonts.regular,
     fontSize: 26,
   },

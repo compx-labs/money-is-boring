@@ -6,7 +6,6 @@ import {
 } from 'algosdk';
 import type { KeyStoreAPI } from '@algorandfoundation/react-native-keystore';
 import { algod } from '@/lib/algorand/client';
-import { signWithAc2 } from '@/lib/keystore/ac2';
 
 type Accept = {
   scheme: string;
@@ -38,7 +37,7 @@ export function x402AmountMicro(paymentRequiredHeader: string): bigint {
 }
 
 /**
- * Sign a Canix exact-scheme x402 USDC transfer from the wallet.
+ * Sign an exact-scheme x402 USDC transfer from this wallet.
  * Fee-payer txn stays unsigned; the user signs only the USDC transfer.
  */
 export async function signX402Payment(
@@ -78,12 +77,7 @@ export async function signX402Payment(
   assignGroupID(group);
 
   const paymentIndex = feePayer ? 1 : 0;
-  const sig = await signWithAc2(
-    store,
-    keyId,
-    group[paymentIndex].bytesToSign(),
-    'Approve this Canix payment',
-  );
+  const sig = await store.sign(keyId, group[paymentIndex].bytesToSign());
   const signedPayment = group[paymentIndex].attachSignature(address, sig);
 
   const paymentGroup: string[] = group.map((txn, i) => {

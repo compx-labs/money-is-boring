@@ -4,6 +4,7 @@ import { Chamfer } from '@/components/Chamfer';
 import { HapticPressable } from '@/components/HapticPressable';
 import { AssetIcon } from '@/components/AssetIcon';
 import { RollingNumber } from '@/components/RollingNumber';
+import { useSheetPalette } from '@/components/SheetScaffold';
 import { useAccent } from '@/hooks/useAccent';
 import { useChrome } from '@/hooks/useChrome';
 import { fonts } from '@/lib/theme';
@@ -32,6 +33,10 @@ export function AssetRow({
 }) {
   const { accent } = useAccent();
   const { bg, ink } = useChrome();
+  const sheet = useSheetPalette();
+  const fill = sheet ? 'none' : bg;
+  const stroke = sheet?.ink ?? accent;
+  const type = sheet?.ink ?? ink;
   return (
     <HapticPressable
       onPress={onPress}
@@ -42,8 +47,8 @@ export function AssetRow({
       style={styles.rowPress}
     >
       <Chamfer
-        fill={bg}
-        stroke={accent}
+        fill={fill}
+        stroke={stroke}
         strokeWidth={6}
         strokeDasharray={optedIn ? undefined : '8 6'}
         strokeEdge="left"
@@ -52,13 +57,13 @@ export function AssetRow({
       >
         <View style={styles.rowLeft}>
           <AssetIcon unit={label} uri={icon} />
-          <Text style={[styles.rowLabel, { color: ink }]}>{label}</Text>
+          <Text style={[styles.rowLabel, { color: type }]}>{label}</Text>
         </View>
         {optedIn ? (
           <RollingNumber
             value={value ?? null}
             format={formatBalance}
-            style={[styles.rowValue, { color: ink }]}
+            style={[styles.rowValue, { color: type }]}
           />
         ) : null}
       </Chamfer>

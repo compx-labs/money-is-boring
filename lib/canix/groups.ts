@@ -1,20 +1,9 @@
-import { decodeUnsignedTransaction } from 'algosdk';
-import type { KeyStoreAPI } from '@algorandfoundation/react-native-keystore';
-import { bytesFromHayJson, submitSignedGroup } from '@/lib/algorand/submit';
-import { signWithAc2 } from '@/lib/keystore/ac2';
+import { bytesFromHayJson } from '@/lib/algorand/submit';
+import type { WalletGroup, WalletGroupMember } from '@/lib/algorand/submit';
 import { b64Decode } from '@/lib/zerosignal/bytes';
 
-export type CanixMember = {
-  index: number;
-  unsigned: Uint8Array;
-  signed?: Uint8Array;
-  signer: 'user' | 'other';
-};
-
-export type CanixGroup = {
-  members: CanixMember[];
-  userSignIndexes: number[];
-};
+export type CanixMember = WalletGroupMember;
+export type CanixGroup = WalletGroup;
 
 function asIndexList(value: unknown, fallback: number[]): number[] {
   if (!Array.isArray(value)) return fallback;
@@ -125,33 +114,4 @@ export function collectCanixGroups(root: unknown): CanixGroup[] {
 
   visit(root, 0);
   return out;
-}
-
-/** Sign user legs with AC2, keep Haystack / pre-signed members, submit locally. */
-export async function signAndSubmitCanixGroup(input: {
-  store: Pick<KeyStoreAPI, 'sign'>;
-  keyId: string;
-  address: string;
-  group: CanixGroup;
-}): Promise<{ txid: string }> {
-  const { store, keyId, address, group } = input;
-  const blobs: Uint8Array[] = [];
-  let txid = '';
-
-  for (const member of group.members) {
-    const needsUser = group.userSignIndexes.includes(member.index) || member.signer === 'user';
-    if (!needsUser) {
-      if (!member.signed) throw new Error('Canix group member is not for this wallet and is unsigned');
-      blobs.push(member.signed);
-      continue;
-    }
-    const decoded = decodeUnsignedTransaction(member.unsigned);
-    const sig = await signWithAc2(store, keyId, decoded.bytesToSign());
-    blobs.push(decoded.attachSignature(address, sig));
-    if (!txid) txid = decoded.txID();
-  }
-
-  if (!txid) throw new Error('Nothing for this device to sign');
-  await submitSignedGroup(blobs, txid);
-  return { txid };
 }

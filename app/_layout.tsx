@@ -3,6 +3,7 @@ import { subtle } from 'react-native-quick-crypto';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
 import {
   BarlowSemiCondensed_400Regular,
   BarlowSemiCondensed_600SemiBold,
@@ -10,7 +11,7 @@ import {
 } from '@expo-google-fonts/barlow-semi-condensed';
 import React from 'react';
 import { useStore } from '@tanstack/react-store';
-import { LoadingScreen } from '@/components/LoadingScreen';
+import { BootDoors } from '@/components/BootDoors';
 import { bootstrap } from '@/lib/keystore/bootstrap';
 import { biometricOptions } from '@/lib/keystore/auth-options';
 import { ReactNativeProvider, WalletProvider } from '@/providers/ReactNativeProvider';
@@ -26,6 +27,8 @@ import { sheetScreenOptions } from '@/lib/motion/sheet';
 
 // Ensure install() ran even if a test imports this module without index.js.
 install();
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export const provider = new ReactNativeProvider(
   {
@@ -49,33 +52,49 @@ export const provider = new ReactNativeProvider(
   },
 );
 
-function RootNavigation({ ready }: { ready: boolean }) {
-  if (!ready) return <LoadingScreen />;
-
+function RootNavigation({
+  ready,
+  doorsGone,
+  onDoorsLaidOut,
+  onDoorsOpened,
+}: {
+  ready: boolean;
+  doorsGone: boolean;
+  onDoorsLaidOut: () => void;
+  onDoorsOpened: () => void;
+}) {
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: 'transparent' },
-        animation: 'fade',
-      }}
-    >
-      <Stack.Screen name="index" />
-      <Stack.Screen name="onboarding" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="swap" options={sheetScreenOptions} />
-      <Stack.Screen name="send" options={sheetScreenOptions} />
-      <Stack.Screen name="receive" options={sheetScreenOptions} />
-      <Stack.Screen name="profile" options={sheetScreenOptions} />
-      <Stack.Screen name="merchant/[id]" options={sheetScreenOptions} />
-      <Stack.Screen name="add-asset" options={sheetScreenOptions} />
-    </Stack>
+    <View style={styles.fill}>
+      {ready ? (
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: 'transparent' },
+            animation: 'fade',
+          }}
+        >
+          <Stack.Screen name="index" />
+          <Stack.Screen name="onboarding" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="swap" options={sheetScreenOptions} />
+          <Stack.Screen name="send" options={sheetScreenOptions} />
+          <Stack.Screen name="receive" options={sheetScreenOptions} />
+          <Stack.Screen name="profile" options={sheetScreenOptions} />
+          <Stack.Screen name="merchant/[id]" options={sheetScreenOptions} />
+          <Stack.Screen name="add-asset" options={sheetScreenOptions} />
+        </Stack>
+      ) : null}
+      {doorsGone ? null : (
+        <BootDoors open={ready} onLaidOut={onDoorsLaidOut} onOpened={onDoorsOpened} />
+      )}
+    </View>
   );
 }
 
 export default function RootLayout() {
   const status = useStore(keyStore, (state) => state.status);
   const [hasLoadedOnce, setHasLoadedOnce] = React.useState(false);
+  const [doorsGone, setDoorsGone] = React.useState(false);
   const [fontsLoaded, fontError] = useFonts({
     BarlowSemiCondensed_400Regular,
     BarlowSemiCondensed_600SemiBold,
@@ -97,15 +116,26 @@ export default function RootLayout() {
   const { bg } = useChrome();
   const mode = useColorMode();
 
+  const hideSplash = React.useCallback(() => {
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
+
+  const dismissDoors = React.useCallback(() => {
+    setDoorsGone(true);
+  }, []);
+
   return (
     <SafeAreaProvider>
       <View style={[styles.root, { backgroundColor: bg }]}>
         <BackgroundTexture />
         <WalletProvider provider={provider}>
           <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
-          <View style={styles.fill}>
-            <RootNavigation ready={hasLoadedOnce && fontsReady} />
-          </View>
+          <RootNavigation
+            ready={hasLoadedOnce && fontsReady}
+            doorsGone={doorsGone}
+            onDoorsLaidOut={hideSplash}
+            onDoorsOpened={dismissDoors}
+          />
         </WalletProvider>
       </View>
     </SafeAreaProvider>
