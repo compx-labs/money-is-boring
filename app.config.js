@@ -37,6 +37,13 @@ module.exports = {
       'expo-router',
       'expo-font',
       [
+        'expo-sqlite',
+        {
+          enableFTS: true,
+          useSQLCipher: false,
+        },
+      ],
+      [
         'expo-splash-screen',
         {
           image: './assets/splash.png',

@@ -1,6 +1,7 @@
 import type { KeyStoreAPI } from '@algorandfoundation/react-native-keystore';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { AGENT_SYSTEM_PROMPT, agentToolSchemas, runAgentTool } from '@/lib/agent/host';
+import { composeAgentInput, loadNotebookContext } from '@/lib/notebook';
 import { ZS_MODEL } from '@/lib/theme';
 import { b64Encode } from '@/lib/zerosignal/bytes';
 import { discoverZsNode, type ZsNode } from '@/lib/zerosignal/discover';
@@ -440,13 +441,18 @@ export async function sendAgentMessage(input: {
   onDelta?: (text: string) => void;
 }): Promise<{ text: string; chargedMicro: number; toolsMicro: bigint }> {
   const { store, keyId, address } = input;
+  const latestUser = [...input.history].reverse().find((t) => t.role === 'user')?.text ?? '';
   input.onStatus?.('finding a node');
-  const node = await discoverZsNode(ZS_MODEL);
-
-  const conversation: ResponseInput[] = [
-    { role: 'system', content: AGENT_SYSTEM_PROMPT },
-    ...input.history.map((t) => ({ role: t.role, content: t.text })),
-  ];
+  const [node, notebook] = await Promise.all([
+    discoverZsNode(ZS_MODEL),
+    loadNotebookContext(latestUser),
+  ]);
+  const conversation: ResponseInput[] = composeAgentInput({
+    system: AGENT_SYSTEM_PROMPT,
+    profile: notebook.profile,
+    hits: notebook.hits,
+    history: input.history,
+  });
 
   let chargedMicro = 0;
   let toolsMicro = 0n;
