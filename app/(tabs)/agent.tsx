@@ -20,6 +20,7 @@ import { useProvider } from '@/hooks/useProvider';
 import { useWalletBalances } from '@/hooks/useWalletBalances';
 import { algorandAddressFromKey, findWalletAccount } from '@/lib/keystore/wallet-account';
 import { fromBaseUnits } from '@/lib/algorand/balances';
+import { warmupNotebook } from '@/lib/notebook';
 import { sendAgentMessage, type ChatTurn } from '@/lib/zerosignal/chat';
 import { prepareLayoutSpring } from '@/lib/motion/layout';
 import { colors, fonts, USDC_ASA_ID } from '@/lib/theme';
@@ -45,6 +46,10 @@ export default function Agent() {
   React.useEffect(() => {
     scrollRef.current?.scrollToEnd({ animated: true });
   }, [messages, busy]);
+
+  React.useEffect(() => {
+    void warmupNotebook();
+  }, []);
 
   if (!wallet || !address) {
     if (keys.length === 0) return <Redirect href="/onboarding" />;

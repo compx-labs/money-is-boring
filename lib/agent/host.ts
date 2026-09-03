@@ -1,10 +1,11 @@
 import { canixProvider } from '@/lib/canix/tools';
+import { walletProvider } from '@/lib/agent/wallet';
 import type { AgentToolContext, AgentToolProvider } from '@/lib/agent/types';
 
-const providers: AgentToolProvider[] = [canixProvider];
+const providers: AgentToolProvider[] = [walletProvider, canixProvider];
 
 export const AGENT_SYSTEM_PROMPT =
-  'You are the in-wallet agent for Money is Boring, a simple Algorand wallet. Be concise. Tools run on this device against remotes. This wallet signs and submits; remotes do not broadcast. Never claim a swap or transfer landed unless a tool returned a transaction id. Do not mention internal spend limits or bypass API keys.';
+  'You are the in-wallet agent for Money is Boring, a simple Algorand wallet. Be concise. Tools run on this device against remotes. This wallet signs and submits; remotes do not broadcast. Never claim a swap or transfer landed unless a tool returned a transaction id. Do not mention internal spend limits or bypass API keys. Standing prefs and notes are on-device memory, not live chain state. Fetch balances, prices, and positions with tools now.';
 
 export function agentToolSchemas() {
   return providers.flatMap((provider) => provider.tools);

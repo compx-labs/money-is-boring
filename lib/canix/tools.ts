@@ -289,6 +289,41 @@ async function compose(ctx: AgentToolContext, args: Record<string, unknown>): Pr
   };
 }
 
+function trimPosition(row: unknown): Record<string, unknown> | null {
+  if (!row || typeof row !== 'object') return null;
+  const o = row as Record<string, unknown>;
+  return {
+    protocol: o.protocol,
+    type: o.type ?? o.positionType ?? o.opportunityType,
+    pair: o.assetPair ?? o.pair,
+    valueUsd: o.valueUsd ?? o.usdValue,
+    amounts: o.amounts ?? o.tokens,
+  };
+}
+
+async function positions(ctx: AgentToolContext): Promise<AgentToolResult> {
+  const { json, paidMicro } = await canixRequest<unknown>({
+    store: ctx.store,
+    keyId: ctx.keyId,
+    address: ctx.address,
+    path: `/positions?address=${encodeURIComponent(ctx.address)}`,
+  });
+  const data = unwrapData(json);
+  const rows = Array.isArray(data)
+    ? data
+    : json && typeof json === 'object' && Array.isArray((json as { positions?: unknown }).positions)
+      ? (json as { positions: unknown[] }).positions
+      : [];
+  return {
+    paidMicro,
+    body: {
+      fetched: 'now',
+      paidMicro: paidMicro.toString(),
+      positions: rows.map(trimPosition).filter((r): r is Record<string, unknown> => !!r),
+    },
+  };
+}
+
 async function execute(ctx: AgentToolContext, args: Record<string, unknown>): Promise<AgentToolResult> {
   const shapeKey = str(args.shapeKey, 'shapeKey');
   const input =
@@ -330,6 +365,7 @@ const handlers: Record<string, (ctx: AgentToolContext, args: Record<string, unkn
   canix_hay_swap: haySwap,
   canix_compose: compose,
   canix_execute: execute,
+  canix_positions: positions,
 };
 
 export const canixProvider: AgentToolProvider = {
@@ -395,6 +431,17 @@ export const canixProvider: AgentToolProvider = {
           amount: { type: 'string', description: 'Input amount in base units, integer string.' },
           slippage: { type: 'number', minimum: 0, maximum: 100, description: 'Percent. Default 1.' },
         },
+        additionalProperties: false,
+      },
+    },
+    {
+      type: 'function',
+      name: 'canix_positions',
+      description:
+        'Live DeFi positions for this wallet right now from Canix. Do not treat notebook notes as positions or balances.',
+      parameters: {
+        type: 'object',
+        properties: {},
         additionalProperties: false,
       },
     },
