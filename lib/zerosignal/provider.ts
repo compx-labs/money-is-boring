@@ -7,6 +7,7 @@ import type { StreamFn } from '@mariozechner/pi-agent-core';
 import type { KeyStoreAPI } from '@algorandfoundation/react-native-keystore';
 import { MAX_OUTPUT, sealedRound } from '@/lib/zerosignal/chat';
 import { contextToZsBody, ZS_API, ZS_PROVIDER } from '@/lib/zerosignal/context';
+import type { PayListener } from '@/lib/zerosignal/pay';
 import { applyTextDelta, emptyAssistant, failRound, finalizeRound } from '@/lib/zerosignal/stream-events';
 import type { ZsNode } from '@/lib/zerosignal/discover';
 
@@ -15,7 +16,8 @@ export type ZsInferenceSession = {
   store: Pick<KeyStoreAPI, 'sign'>;
   keyId: string;
   address: string;
-  onStatus?: (step: string) => void;
+  onPay?: PayListener;
+  awaitSign?: () => Promise<void>;
   chargedMicro: number;
 };
 
@@ -62,7 +64,8 @@ export function createZerosignalStream(session: ZsInferenceSession): StreamFn {
           keyId: session.keyId,
           address: session.address,
           body,
-          onStatus: session.onStatus,
+          onPay: session.onPay,
+          awaitSign: session.awaitSign,
           onDelta: (text) => {
             for (const event of applyTextDelta(output, soFar, text)) {
               stream.push(event);

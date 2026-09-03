@@ -87,10 +87,12 @@ export function Chamfer({
 
   const flat = StyleSheet.flatten(style) ?? {};
   const inner = StyleSheet.flatten(contentStyle) ?? {};
-  const cut =
-    contentInset && box.width > 0 && box.height > 0 ? chamferCut(box.width, box.height) : 0;
   const padL = numericPad(inner.paddingLeft ?? inner.paddingHorizontal ?? inner.padding);
   const padR = numericPad(inner.paddingRight ?? inner.paddingHorizontal ?? inner.padding);
+  // Padding must not track measured height — wrapping text would grow the cut,
+  // add inset, wrap again, and loop (Maximum update depth). SVG still uses full height.
+  const cut =
+    contentInset && box.width > 0 ? chamferCut(box.width, Math.min(box.height || 48, 48)) : 0;
 
   const face = (
     <View style={style} onLayout={onLayout}>

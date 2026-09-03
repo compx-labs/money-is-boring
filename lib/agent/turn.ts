@@ -5,11 +5,13 @@ import type { AssistantMessage, Message } from '@mariozechner/pi-ai';
 import { AGENT_SYSTEM_PROMPT } from '@/lib/agent/host';
 import { createWalletInference } from '@/lib/agent/inference';
 import { hostToolsAsPi, type HostToolDetails } from '@/lib/agent/pi-tools';
+import { replyFromToolResults } from '@/lib/agent/tool-reply';
 import { formatNotebookPreamble, lastTurns, loadNotebookContext } from '@/lib/notebook';
 import { ZS_MODEL } from '@/lib/theme';
 import { MAX_OUTPUT, type ChatTurn } from '@/lib/zerosignal/chat';
 import { ZS_API, ZS_PROVIDER } from '@/lib/zerosignal/context';
 import { discoverZsNode } from '@/lib/zerosignal/discover';
+import type { PayListener } from '@/lib/zerosignal/pay';
 
 export type { ChatTurn };
 
@@ -77,6 +79,14 @@ function collectAssistantText(messages: AgentMessage[]): string {
     .trim();
 }
 
+function toolResultText(message: AgentMessage): string {
+  if (message.role !== 'toolResult') return '';
+  return message.content
+    .filter((block) => block.type === 'text')
+    .map((block) => block.text)
+    .join('');
+}
+
 function paidMicroOf(result: unknown): bigint {
   if (!result || typeof result !== 'object') return 0n;
   const details = (result as AgentToolResult<HostToolDetails>).details;
@@ -92,12 +102,13 @@ export async function sendAgentMessage(input: {
   keyId: string;
   address: string;
   history: ChatTurn[];
-  onStatus?: (step: string) => void;
+  onPay?: PayListener;
+  awaitSign?: () => Promise<void>;
   onDelta?: (text: string) => void;
 }): Promise<{ text: string; chargedMicro: number; toolsMicro: bigint }> {
   const { store, keyId, address } = input;
   const latestUser = [...input.history].reverse().find((turn) => turn.role === 'user')?.text ?? '';
-  input.onStatus?.('finding a node');
+  input.onPay?.({ type: 'step', step: 'discover' });
   const [node, notebook] = await Promise.all([
     discoverZsNode(ZS_MODEL),
     loadNotebookContext(latestUser),
@@ -108,7 +119,8 @@ export async function sendAgentMessage(input: {
     store,
     keyId,
     address,
-    onStatus: input.onStatus,
+    onPay: input.onPay,
+    awaitSign: input.awaitSign,
     chargedMicro: 0,
   };
   const inference = createWalletInference('zerosignal', session);
@@ -125,7 +137,7 @@ export async function sendAgentMessage(input: {
     {
       systemPrompt: `${AGENT_SYSTEM_PROMPT}\n\n${preamble}`,
       messages: prior,
-      tools: hostToolsAsPi({ store, keyId, address, onStatus: input.onStatus }),
+      tools: hostToolsAsPi({ store, keyId, address }),
     },
     {
       model: inference.model,
@@ -148,7 +160,7 @@ export async function sendAgentMessage(input: {
         currentPartial = '';
       }
       if (event.type === 'tool_execution_start') {
-        input.onStatus?.(event.toolName);
+        input.onPay?.({ type: 'step', step: `tool:${event.toolName}` });
       }
       if (event.type === 'tool_execution_end' && !event.isError) {
         toolsMicro += paidMicroOf(event.result);
@@ -167,7 +179,15 @@ export async function sendAgentMessage(input: {
     throw new Error(last.errorMessage || 'ZeroSignal inference failed');
   }
 
-  const text = collectAssistantText(messages);
+  const text =
+    collectAssistantText(messages) ||
+    replyFromToolResults(
+      messages.flatMap((message) =>
+        message.role === 'toolResult'
+          ? [{ toolName: message.toolName, text: toolResultText(message), isError: message.isError }]
+          : [],
+      ),
+    );
   if (!text) throw new Error('ZeroSignal returned no text');
   return { text, chargedMicro: session.chargedMicro, toolsMicro };
 }

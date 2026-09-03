@@ -16,22 +16,50 @@ export const ENCRYPTED_CONTENT_TYPE = 'application/vnd.zs+json';
 
 export type AgeIdentity = { secret: string; recipient: string };
 
+function asByteStream(bytes: Uint8Array): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(bytes);
+      controller.close();
+    },
+  });
+}
+
+async function readByteStream(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) chunks.push(value);
+  }
+  return concatBytes(...chunks);
+}
+
 export async function newAgeIdentity(): Promise<AgeIdentity> {
   const secret = await generateX25519Identity();
   const recipient = await identityToRecipient(secret);
   return { secret, recipient };
 }
 
+/** RN's `new Response(stream).arrayBuffer()` stringifies the stream. Read it ourselves. */
 export async function ageEncrypt(recipient: string, plaintext: Uint8Array): Promise<Uint8Array> {
   const enc = new Encrypter();
   enc.addRecipient(recipient);
-  return enc.encrypt(plaintext);
+  const out = await enc.encrypt(asByteStream(plaintext));
+  const bytes = await readByteStream(out);
+  if (bytes.byteLength < 8 || bytes[0] === 0x5b) {
+    throw new Error('age encrypt did not produce a ciphertext');
+  }
+  return bytes;
 }
 
 export async function ageDecrypt(secret: string, ciphertext: Uint8Array): Promise<Uint8Array> {
   const dec = new Decrypter();
   dec.addIdentity(secret);
-  return dec.decrypt(ciphertext);
+  const out = await dec.decrypt(asByteStream(ciphertext));
+  if (out instanceof Uint8Array) return out;
+  return readByteStream(out);
 }
 
 function u32be(n: number): Uint8Array {

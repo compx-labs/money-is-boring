@@ -1,6 +1,6 @@
 import { Redirect, Tabs } from 'expo-router';
 import React, { type ComponentProps } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { InteractionManager, StyleSheet, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Chamfer } from '@/components/Chamfer';
 import { HapticPressable } from '@/components/HapticPressable';
@@ -10,6 +10,7 @@ import { useAccent } from '@/hooks/useAccent';
 import { useChrome } from '@/hooks/useChrome';
 import { useProvider } from '@/hooks/useProvider';
 import { findWalletAccount } from '@/lib/keystore/wallet-account';
+import { loadX402Merchants } from '@/lib/x402/merchants';
 
 type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -82,6 +83,15 @@ export default function TabsLayout() {
   const { keys, accounts } = useProvider();
   const { accent } = useAccent();
   const wallet = findWalletAccount(accounts, keys);
+  const ready = keys.length > 0 && wallet != null;
+
+  React.useEffect(() => {
+    if (!ready) return;
+    const task = InteractionManager.runAfterInteractions(() => {
+      loadX402Merchants().catch(() => {});
+    });
+    return () => task.cancel();
+  }, [ready]);
 
   if (keys.length === 0) return <Redirect href="/onboarding" />;
   if (!wallet) return <LoadingScreen />;
@@ -99,7 +109,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="home" options={{ title: 'Home' }} />
       <Tabs.Screen name="agent" options={{ title: 'Agent' }} />
-      <Tabs.Screen name="explore" options={{ title: 'Explore' }} />
+      <Tabs.Screen name="explore" options={{ title: 'Explore', lazy: false }} />
     </Tabs>
   );
 }

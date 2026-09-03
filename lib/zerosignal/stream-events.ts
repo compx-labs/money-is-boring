@@ -7,7 +7,7 @@ import type {
   ToolCall,
   Usage,
 } from '@mariozechner/pi-ai';
-import type { FunctionCall } from '@/lib/zerosignal/chat';
+import { namedFunctionCalls, type FunctionCall } from '@/lib/zerosignal/sse-tools';
 
 const EMPTY_USAGE: Usage = {
   input: 0,
@@ -96,7 +96,8 @@ export function finalizeRound(
     }
   }
 
-  for (const call of acc.functionCalls.values()) {
+  const calls = namedFunctionCalls(acc.functionCalls);
+  for (const call of calls) {
     const toolCall: ToolCall = {
       type: 'toolCall',
       id: call.call_id,
@@ -119,7 +120,7 @@ export function finalizeRound(
   if (usage?.output != null) output.usage.output = usage.output;
   output.usage.totalTokens = output.usage.input + output.usage.output;
 
-  const hasTools = acc.functionCalls.size > 0;
+  const hasTools = calls.length > 0;
   const reason: Extract<StopReason, 'stop' | 'toolUse'> = hasTools ? 'toolUse' : 'stop';
   output.stopReason = reason;
   events.push({ type: 'done', reason, message: output });

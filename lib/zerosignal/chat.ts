@@ -1,8 +1,18 @@
 import type { KeyStoreAPI } from '@algorandfoundation/react-native-keystore';
 import { sha256 } from '@noble/hashes/sha2.js';
+import { fromBaseUnits } from '@/lib/algorand/balances';
 import { b64Encode } from '@/lib/zerosignal/bytes';
 import type { ZsNode } from '@/lib/zerosignal/discover';
 import { composeOpen, ensureMbrDeposit, isEscrowOptedIn, isMbrPoolGuard, submitPresignedSettleGroup } from '@/lib/zerosignal/escrow';
+import type { PayListener, PayStep } from '@/lib/zerosignal/pay';
+import {
+  emptySseFields,
+  failedResponseMessage,
+  finalizeSseAcc,
+  ingestFrame,
+  namedFunctionCalls,
+  type FunctionCall,
+} from '@/lib/zerosignal/sse-tools';
 import {
   parseTicket,
   parseReceipt,
@@ -39,9 +49,11 @@ const MAX_PRICE_MICRO = 100_000;
 const RESERVE_MIN_TTL_SEC = 15;
 
 export type ChatTurn = { role: 'user' | 'assistant'; text: string };
-export type FunctionCall = { call_id: string; name: string; arguments: string };
+export type { FunctionCall };
 export type StreamAcc = {
   text: string;
+  reasoning: string;
+  eventTypes: string[];
   contentFrames: Uint8Array[];
   frameIndex: number;
   settleGroupB64: string | null;
@@ -157,52 +169,15 @@ async function reserveTicket(args: {
   return { ticket, responseKey, presignedOpenTxn };
 }
 
-function collectDelta(obj: unknown, soFar: string): string {
-  if (!obj || typeof obj !== 'object') return soFar;
-  const rec = obj as { type?: unknown; delta?: unknown };
-  if (rec.type === 'response.output_text.delta' && typeof rec.delta === 'string') {
-    return soFar + rec.delta;
-  }
-  return soFar;
-}
-
-function isTerminal(obj: unknown): boolean {
-  if (!obj || typeof obj !== 'object') return false;
-  const type = (obj as { type?: unknown }).type;
-  return type === 'response.completed' || type === 'response.incomplete' || type === 'response.failed';
-}
-
-function considerFunctionItem(item: unknown, calls: Map<string, FunctionCall>): void {
-  if (!item || typeof item !== 'object') return;
-  const it = item as Record<string, unknown>;
-  if (it.type !== 'function_call' || typeof it.name !== 'string') return;
-  const call_id = String(it.call_id ?? it.id ?? it.name);
-  calls.set(call_id, {
-    call_id,
-    name: it.name,
-    arguments: typeof it.arguments === 'string' ? it.arguments : JSON.stringify(it.arguments ?? {}),
-  });
-}
-
-function ingestFunctionCall(obj: unknown, calls: Map<string, FunctionCall>): void {
-  if (!obj || typeof obj !== 'object') return;
-  const rec = obj as Record<string, unknown>;
-  if (rec.type === 'response.output_item.done' || rec.type === 'response.output_item.added') {
-    considerFunctionItem(rec.item, calls);
-  }
-  if (rec.type === 'response.function_call_arguments.done') {
-    const call_id = String(rec.call_id ?? rec.item_id ?? '');
-    if (!call_id) return;
-    const prev = calls.get(call_id);
-    const args = typeof rec.arguments === 'string' ? rec.arguments : prev?.arguments ?? '{}';
-    const name = typeof rec.name === 'string' ? rec.name : prev?.name;
-    if (name) calls.set(call_id, { call_id, name, arguments: args });
-  }
-  if (rec.type === 'response.completed' && rec.response && typeof rec.response === 'object') {
-    const output = (rec.response as { output?: unknown }).output;
-    if (Array.isArray(output)) {
-      for (const item of output) considerFunctionItem(item, calls);
-    }
+function throwIfFailedFrame(plaintext: Uint8Array): void {
+  const raw = new TextDecoder().decode(plaintext).trim();
+  if (!raw.startsWith('{') && !raw.startsWith('[')) return;
+  try {
+    const fail = failedResponseMessage(JSON.parse(raw));
+    if (fail) throw new Error(fail);
+  } catch (err) {
+    if (err instanceof SyntaxError) return;
+    throw err;
   }
 }
 
@@ -240,21 +215,10 @@ function handleSse(
     return;
   }
   acc.contentFrames.push(plaintext);
-  try {
-    const obj = JSON.parse(new TextDecoder().decode(plaintext));
-    ingestFunctionCall(obj, acc.functionCalls);
-    const next = collectDelta(obj, acc.text);
-    if (next !== acc.text) {
-      acc.text = next;
-      args.onDelta?.(acc.text);
-    }
-    if (isTerminal(obj) && (obj as { type?: string }).type === 'response.failed') {
-      const err = obj as { response?: { error?: { message?: string } } };
-      if (err.response?.error?.message) throw new Error(err.response.error.message);
-    }
-  } catch {
-    // Non-JSON content frames are still hashed.
-  }
+  const before = acc.text;
+  ingestFrame(plaintext, acc);
+  if (acc.text !== before) args.onDelta?.(acc.text);
+  throwIfFailedFrame(plaintext);
 }
 
 async function readSse(
@@ -262,16 +226,16 @@ async function readSse(
   args: { responseKey: Uint8Array; txID: string; ticketID: string; onDelta?: (text: string) => void },
 ): Promise<StreamAcc> {
   const acc: StreamAcc = {
-    text: '',
+    ...emptySseFields(),
     contentFrames: [],
     frameIndex: 0,
     settleGroupB64: null,
     receipt: null,
-    functionCalls: new Map(),
   };
   const reader = res.body?.getReader?.();
   if (!reader) {
     for (const ev of parseSseStream(await res.text())) handleSse(ev, acc, args);
+    finalizeSseAcc(acc);
     return acc;
   }
 
@@ -292,6 +256,10 @@ async function readSse(
   }
   const tail = parseSseBlock(buffer);
   if (tail) handleSse(tail, acc, args);
+  finalizeSseAcc(acc);
+  if (!acc.text && namedFunctionCalls(acc.functionCalls).length === 0) {
+    console.warn('[agent pay] empty inference', acc.eventTypes.slice(0, 24));
+  }
   return acc;
 }
 
@@ -299,6 +267,21 @@ function bodyHashHexLocal(frames: Uint8Array[]): string {
   const h = sha256.create();
   for (const f of frames) h.update(f);
   return Buffer.from(h.digest()).toString('hex');
+}
+
+async function waitToSign(
+  input: { onPay?: PayListener; awaitSign?: () => Promise<void> },
+  step: PayStep,
+  amountLabel?: string,
+): Promise<void> {
+  input.onPay?.({ type: 'step', step, amountLabel });
+  if (step === 'settle') return;
+  await input.awaitSign?.();
+}
+
+function isSignCancel(err: unknown): boolean {
+  const raw = err instanceof Error ? err.message : String(err);
+  return raw.toLowerCase().includes('sign cancelled');
 }
 
 /**
@@ -311,13 +294,14 @@ export async function sealedRound(input: {
   keyId: string;
   address: string;
   body: Uint8Array;
-  onStatus?: (step: string) => void;
+  onPay?: PayListener;
+  awaitSign?: () => Promise<void>;
   onDelta?: (text: string) => void;
 }): Promise<{ acc: StreamAcc; chargedMicro: number }> {
   const { node, store, keyId, address, body } = input;
   const identity = await newAgeIdentity();
 
-  input.onStatus?.('reserving');
+  await waitToSign(input, 'reserve');
   const reserved = await reserveTicket({
     node,
     store,
@@ -326,14 +310,15 @@ export async function sealedRound(input: {
     body,
     identity,
   });
+  const lockLabel = fromBaseUnits(String(reserved.ticket.max_price), 6);
 
-  input.onStatus?.('opening escrow');
   if (!(await isEscrowOptedIn(address))) {
-    input.onStatus?.('funding ticket pool');
+    await waitToSign(input, 'fundPool');
     await ensureMbrDeposit(store, keyId, address);
   }
   let txids: string[];
   try {
+    await waitToSign(input, 'openEscrow', lockLabel);
     txids = (
       await composeOpen(store, keyId, {
         ticket: reserved.ticket,
@@ -344,8 +329,9 @@ export async function sealedRound(input: {
     ).txids;
   } catch (openErr) {
     if (!isMbrPoolGuard(openErr)) throw openErr;
-    input.onStatus?.('funding ticket pool');
+    await waitToSign(input, 'fundPool');
     await ensureMbrDeposit(store, keyId, address);
+    await waitToSign(input, 'openEscrow', lockLabel);
     txids = (
       await composeOpen(store, keyId, {
         ticket: reserved.ticket,
@@ -372,7 +358,7 @@ export async function sealedRound(input: {
     ephemeral: identity,
   });
 
-  input.onStatus?.('thinking');
+  input.onPay?.({ type: 'step', step: 'think' });
   const infer = await fetch(`${stripSlash(node.baseUrl)}/v1/responses`, {
     method: 'POST',
     headers: {
@@ -394,6 +380,7 @@ export async function sealedRound(input: {
   });
 
   let chargedMicro = 0;
+  const usable = Boolean(acc.text || namedFunctionCalls(acc.functionCalls).length > 0);
   if (acc.receipt) {
     try {
       const hex = bodyHashHexLocal(acc.contentFrames);
@@ -406,14 +393,26 @@ export async function sealedRound(input: {
       }
       chargedMicro = acc.receipt.amount_charged;
       if (acc.settleGroupB64) {
+        input.onPay?.({ type: 'step', step: 'settle' });
         await submitPresignedSettleGroup(store, keyId, {
           settleGroupB64: acc.settleGroupB64,
           payerAddress: address,
         });
       }
-    } catch {
-      // Operator force-finalizes after grace if the payer ack is silent.
+    } catch (err) {
+      if (isSignCancel(err) && !usable) throw err;
+      input.onPay?.({
+        type: 'warning',
+        step: 'settle',
+        message: 'charge will finish on-chain',
+      });
     }
+  } else if (usable) {
+    input.onPay?.({
+      type: 'warning',
+      step: 'settle',
+      message: 'charge will finish on-chain',
+    });
   }
 
   reserved.responseKey.fill(0);

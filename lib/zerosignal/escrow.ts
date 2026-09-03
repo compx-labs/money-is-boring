@@ -19,7 +19,7 @@ import { b64Decode } from '@/lib/zerosignal/bytes';
 import type { Ticket } from '@/lib/zerosignal/ticket';
 
 const TICKET_ID_RAW_LEN = 16;
-const MBR_DEPOSIT_MICRO = 500_000n;
+export const MBR_DEPOSIT_MICRO = 500_000n;
 const depositMethod = ABIMethod.fromSignature('depositMbr(pay)void');
 
 function addrString(v: { toString(): string } | string): string {

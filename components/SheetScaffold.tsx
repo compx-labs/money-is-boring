@@ -85,7 +85,13 @@ function keyboardInset(event: KeyboardEvent): number {
 }
 
 /** Bottom card: accent fill, chrome-bg lip, flush to the screen edges. Height hugs content. */
-export function SheetScaffold({ children }: { children: React.ReactNode }) {
+export function SheetScaffold({
+  children,
+  onDismiss,
+}: {
+  children: React.ReactNode;
+  onDismiss?: () => void;
+}) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { accent } = useAccent();
@@ -100,6 +106,8 @@ export function SheetScaffold({ children }: { children: React.ReactNode }) {
   const closingRef = React.useRef(false);
   const poppedRef = React.useRef(false);
   const popTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onDismissRef = React.useRef(onDismiss);
+  onDismissRef.current = onDismiss;
   const [closing, setClosing] = React.useState(false);
   const [reduceMotion, setReduceMotion] = React.useState(false);
   const [bodyH, setBodyH] = React.useState(0);
@@ -202,6 +210,7 @@ export function SheetScaffold({ children }: { children: React.ReactNode }) {
     if (closingRef.current) return;
     closingRef.current = true;
     setClosing(true);
+    onDismissRef.current?.();
     Keyboard.dismiss();
     if (reduceMotion) {
       translateY.setValue(height);
