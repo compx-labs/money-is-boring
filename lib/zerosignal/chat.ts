@@ -1,10 +1,7 @@
 import type { KeyStoreAPI } from '@algorandfoundation/react-native-keystore';
 import { sha256 } from '@noble/hashes/sha2.js';
-import { AGENT_SYSTEM_PROMPT, agentToolSchemas, runAgentTool } from '@/lib/agent/host';
-import { composeAgentInput, loadNotebookContext } from '@/lib/notebook';
-import { ZS_MODEL } from '@/lib/theme';
 import { b64Encode } from '@/lib/zerosignal/bytes';
-import { discoverZsNode, type ZsNode } from '@/lib/zerosignal/discover';
+import type { ZsNode } from '@/lib/zerosignal/discover';
 import { composeOpen, ensureMbrDeposit, isEscrowOptedIn, isMbrPoolGuard, submitPresignedSettleGroup } from '@/lib/zerosignal/escrow';
 import {
   parseTicket,
@@ -37,12 +34,20 @@ import {
   type SseEvent,
 } from '@/lib/zerosignal/wire';
 
-const MAX_OUTPUT = 2048;
+export const MAX_OUTPUT = 2048;
 const MAX_PRICE_MICRO = 100_000;
 const RESERVE_MIN_TTL_SEC = 15;
-const MAX_TOOL_ROUNDS = 4;
 
 export type ChatTurn = { role: 'user' | 'assistant'; text: string };
+export type FunctionCall = { call_id: string; name: string; arguments: string };
+export type StreamAcc = {
+  text: string;
+  contentFrames: Uint8Array[];
+  frameIndex: number;
+  settleGroupB64: string | null;
+  receipt: UsageReceipt | null;
+  functionCalls: Map<string, FunctionCall>;
+};
 
 function openaiError(json: unknown, fallback: string, status: number): never {
   const err = json as { error?: { message?: string; code?: string } | string; message?: string } | null;
@@ -166,17 +171,6 @@ function isTerminal(obj: unknown): boolean {
   const type = (obj as { type?: unknown }).type;
   return type === 'response.completed' || type === 'response.incomplete' || type === 'response.failed';
 }
-
-type FunctionCall = { call_id: string; name: string; arguments: string };
-
-type StreamAcc = {
-  text: string;
-  contentFrames: Uint8Array[];
-  frameIndex: number;
-  settleGroupB64: string | null;
-  receipt: UsageReceipt | null;
-  functionCalls: Map<string, FunctionCall>;
-};
 
 function considerFunctionItem(item: unknown, calls: Map<string, FunctionCall>): void {
   if (!item || typeof item !== 'object') return;
@@ -307,12 +301,11 @@ function bodyHashHexLocal(frames: Uint8Array[]): string {
   return Buffer.from(h.digest()).toString('hex');
 }
 
-type ResponseInput =
-  | { role: 'system' | 'user' | 'assistant'; content: string }
-  | { type: 'function_call'; call_id: string; name: string; arguments: string }
-  | { type: 'function_call_output'; call_id: string; output: string };
-
-async function sealedRound(input: {
+/**
+ * One sealed pay-per-call inference round. Tickets, age, receipts, and settle
+ * stay here. Pi owns the tool loop — see lib/agent/turn.ts.
+ */
+export async function sealedRound(input: {
   node: ZsNode;
   store: Pick<KeyStoreAPI, 'sign'>;
   keyId: string;
@@ -425,96 +418,4 @@ async function sealedRound(input: {
 
   reserved.responseKey.fill(0);
   return { acc, chargedMicro };
-}
-
-/**
- * One in-wallet chat turn. Speaks ZeroSignal's sealed pay-per-call protocol
- * from this device — no zs-proxy daemon, no always-on host, no relay.
- * Tool schemas come from the agent host; this wallet signs and submits.
- */
-export async function sendAgentMessage(input: {
-  store: Pick<KeyStoreAPI, 'sign'>;
-  keyId: string;
-  address: string;
-  history: ChatTurn[];
-  onStatus?: (step: string) => void;
-  onDelta?: (text: string) => void;
-}): Promise<{ text: string; chargedMicro: number; toolsMicro: bigint }> {
-  const { store, keyId, address } = input;
-  const latestUser = [...input.history].reverse().find((t) => t.role === 'user')?.text ?? '';
-  input.onStatus?.('finding a node');
-  const [node, notebook] = await Promise.all([
-    discoverZsNode(ZS_MODEL),
-    loadNotebookContext(latestUser),
-  ]);
-  const conversation: ResponseInput[] = composeAgentInput({
-    system: AGENT_SYSTEM_PROMPT,
-    profile: notebook.profile,
-    hits: notebook.hits,
-    history: input.history,
-  });
-
-  let chargedMicro = 0;
-  let toolsMicro = 0n;
-  let lastText = '';
-  let spoken = '';
-
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-    const includeTools = round < MAX_TOOL_ROUNDS - 1;
-    const requestBody: Record<string, unknown> = {
-      model: node.model,
-      input: conversation,
-      stream: true,
-      max_output_tokens: MAX_OUTPUT,
-    };
-    if (includeTools) {
-      requestBody.tools = agentToolSchemas();
-      requestBody.tool_choice = 'auto';
-    }
-    const body = new TextEncoder().encode(JSON.stringify(requestBody));
-    const { acc, chargedMicro: roundMicro } = await sealedRound({
-      node,
-      store,
-      keyId,
-      address,
-      body,
-      onStatus: input.onStatus,
-      onDelta: (text) => input.onDelta?.(spoken + text),
-    });
-    chargedMicro += roundMicro;
-    lastText = acc.text;
-    const calls = [...acc.functionCalls.values()];
-    if (calls.length === 0) {
-      if (!acc.text) throw new Error('ZeroSignal returned no text');
-      return { text: spoken + acc.text, chargedMicro, toolsMicro };
-    }
-
-    if (acc.text) spoken += `${acc.text}\n`;
-    for (const call of calls) {
-      conversation.push({
-        type: 'function_call',
-        call_id: call.call_id,
-        name: call.name,
-        arguments: call.arguments,
-      });
-    }
-    for (const call of calls) {
-      input.onStatus?.(call.name);
-      const result = await runAgentTool(call.name, call.arguments, {
-        store,
-        keyId,
-        address,
-        onStatus: input.onStatus,
-      });
-      toolsMicro += result.paidMicro;
-      conversation.push({
-        type: 'function_call_output',
-        call_id: call.call_id,
-        output: result.output,
-      });
-    }
-  }
-
-  if (!lastText && !spoken) throw new Error('ZeroSignal returned no text');
-  return { text: (spoken + lastText).trim(), chargedMicro, toolsMicro };
 }

@@ -21,7 +21,7 @@ import { useWalletBalances } from '@/hooks/useWalletBalances';
 import { algorandAddressFromKey, findWalletAccount } from '@/lib/keystore/wallet-account';
 import { fromBaseUnits } from '@/lib/algorand/balances';
 import { warmupNotebook } from '@/lib/notebook';
-import { sendAgentMessage, type ChatTurn } from '@/lib/zerosignal/chat';
+import { sendAgentMessage, type ChatTurn } from '@/lib/agent/turn';
 import { prepareLayoutSpring } from '@/lib/motion/layout';
 import { colors, fonts, USDC_ASA_ID } from '@/lib/theme';
 
