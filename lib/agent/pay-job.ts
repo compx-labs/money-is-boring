@@ -2,6 +2,9 @@ import { markSetupDone } from '@/lib/agent/setup';
 import { sendAgentMessage } from '@/lib/agent/turn';
 import { humanPayError } from '@/lib/zerosignal/errors';
 import { ensureMbrDeposit } from '@/lib/zerosignal/escrow';
+import { agentConfirmStore } from '@/stores/agent-confirm';
+import { agentModelStore } from '@/stores/agent-model';
+import { agentToolsStore } from '@/stores/agent-tools';
 import {
   agentPayStore,
   applyPayEvent,
@@ -46,6 +49,7 @@ export async function startQueuedPay(): Promise<void> {
   const s = paySigner();
   if (!s) return;
   const history = agentPayStore.state.history;
+  const confirm = agentConfirmStore.state;
   inflight = true;
   const token = setPayRunning();
   try {
@@ -54,6 +58,10 @@ export async function startQueuedPay(): Promise<void> {
       keyId: s.keyId,
       address: s.address,
       history,
+      model: agentModelStore.state,
+      suite: agentToolsStore.state?.tools ?? [],
+      confirmTools: confirm.confirmTools,
+      confirmInference: confirm.confirmInference,
       onPay: (event) => {
         if (token !== payGeneration()) return;
         applyPayEvent(event);

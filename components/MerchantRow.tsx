@@ -56,14 +56,15 @@ const styles = StyleSheet.create({
   rowInner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    minHeight: 48,
-    paddingVertical: 14,
+    minHeight: 104,
+    paddingVertical: 16,
     paddingLeft: 16,
-    paddingRight: 20,
+    paddingRight: 16,
     gap: 14,
   },
   copy: {
     flex: 1,
+    minWidth: 0,
     gap: 6,
   },
   name: {

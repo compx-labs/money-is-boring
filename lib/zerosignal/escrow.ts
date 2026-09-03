@@ -14,6 +14,7 @@ import {
 import type { KeyStoreAPI } from '@algorandfoundation/react-native-keystore';
 import { algod } from '@/lib/algorand/client';
 import { submitSignedGroup } from '@/lib/algorand/submit';
+import { reuseAuth } from '@/lib/keystore/auth-options';
 import { ALGOD_URL, USDC_ASA_ID, ZS_ESCROW_APP_ID } from '@/lib/theme';
 import { b64Decode } from '@/lib/zerosignal/bytes';
 import type { Ticket } from '@/lib/zerosignal/ticket';
@@ -136,7 +137,7 @@ export async function submitPresignedSettleGroup(
   if (addrString(payerTxn.sender) !== args.payerAddress) {
     throw new Error('settle group payer mismatch');
   }
-  const sig = await store.sign(keyId, payerTxn.bytesToSign());
+  const sig = await store.sign(keyId, payerTxn.bytesToSign(), undefined, reuseAuth);
   const payerBlob = payerTxn.attachSignature(args.payerAddress, sig);
   const operatorBlob = encodeMsgpack(decoded[0]);
   await submitSignedGroup([operatorBlob, payerBlob], payerTxn.txID());

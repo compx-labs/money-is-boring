@@ -114,11 +114,40 @@ async function listOnChainNodes(): Promise<Array<{ operatorId: number; nodeId: n
   return listed;
 }
 
-function modelIds(models: unknown): string[] {
+export function modelIds(models: unknown): string[] {
   if (!Array.isArray(models)) return [];
   return models
     .map((m) => (typeof m === 'string' ? m : m && typeof m === 'object' ? String((m as { id?: unknown }).id ?? '') : ''))
     .filter(Boolean);
+}
+
+/** Selected id first, then the rest A–Z. Always includes `selected` even if the catalog omitted it. */
+export function orderModels(ids: string[], selected: string): string[] {
+  const unique = new Set<string>();
+  if (selected) unique.add(selected);
+  for (const id of ids) {
+    if (id) unique.add(id);
+  }
+  const rest = [...unique].filter((id) => id !== selected).sort((a, b) => a.localeCompare(b));
+  return selected ? [selected, ...rest] : rest;
+}
+
+async function probeModelIds(chain: {
+  operatorId: number;
+  nodeId: number;
+  baseUrl: string;
+}): Promise<string[]> {
+  try {
+    const res = await fetch(`${chain.baseUrl}/v1/zs/details`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return [];
+    const details = (await res.json()) as DetailsJson;
+    if (details.operator_id !== chain.operatorId || details.node_id !== chain.nodeId) return [];
+    return modelIds(details.models);
+  } catch {
+    return [];
+  }
 }
 
 async function probeDetails(
@@ -164,13 +193,26 @@ async function probeDetails(
   }
 }
 
-/** Find an on-chain ZeroSignal node that serves the in-wallet model. Direct HTTP, no relay. */
-export async function discoverZsNode(model = ZS_MODEL): Promise<ZsNode> {
+async function liveNodeRecords() {
   const ids = await listOnChainNodes();
-  const records = (
+  return (
     await Promise.all(ids.map((id) => fetchNodeBox(id.operatorId, id.nodeId)))
   ).filter((n): n is NonNullable<typeof n> => n != null);
+}
 
+/** Union of model ids advertised by live nodes. Free: `/v1/zs/details` only, no ticket. */
+export async function listZsModels(): Promise<string[]> {
+  const records = await liveNodeRecords();
+  const lists = await Promise.all(records.map((n) => probeModelIds(n)));
+  const unique = new Set<string>();
+  for (const id of lists.flat()) unique.add(id);
+  if (unique.size === 0) throw new Error('No live ZeroSignal models');
+  return [...unique].sort((a, b) => a.localeCompare(b));
+}
+
+/** Find an on-chain ZeroSignal node that serves the in-wallet model. Direct HTTP, no relay. */
+export async function discoverZsNode(model = ZS_MODEL): Promise<ZsNode> {
+  const records = await liveNodeRecords();
   const probed = await Promise.all(records.map((n) => probeDetails(n, model)));
   const hit = probed.find((n) => n != null);
   if (!hit) {

@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { humanPayError } from '@/lib/zerosignal/errors';
-import { isSignStep, payStepAction, payStepLabel, reducePayEvent, type PayStepRow } from '@/lib/zerosignal/pay';
+import {
+  isSignStep,
+  payStepAction,
+  payStepLabel,
+  reducePayEvent,
+  ticketLocksUsdc,
+  type PayStepRow,
+} from '@/lib/zerosignal/pay';
 
 describe('pay step labels', () => {
   it('uses human copy, not protocol jargon', () => {
@@ -12,9 +19,15 @@ describe('pay step labels', () => {
     assert.equal(payStepLabel('openEscrow'), 'lock up to 0.10 USDC');
     assert.equal(payStepLabel('openEscrow', '0.002'), 'lock up to 0.002 USDC');
     assert.equal(payStepLabel('think'), 'thinking');
-    assert.equal(payStepLabel('settle'), 'charging');
-    assert.equal(payStepLabel('tool:wallet_holdings'), 'wallet_holdings');
-    assert.equal(isSignStep('reserve'), true);
+    assert.equal(payStepLabel('settle'), 'paying for inference');
+    assert.equal(payStepLabel('tool:wallet_holdings'), 'checking balances');
+    assert.equal(payStepAction('tool:wallet_holdings'), 'allow');
+    assert.equal(payStepLabel('tool:get_opportunities'), 'working');
+    assert.equal(isSignStep('reserve'), false);
+    assert.equal(isSignStep('openEscrow'), true);
+    assert.equal(ticketLocksUsdc(0), false);
+    assert.equal(ticketLocksUsdc('0'), false);
+    assert.equal(ticketLocksUsdc(1), true);
     assert.equal(isSignStep('settle'), false);
     assert.equal(isSignStep('think'), false);
   });
@@ -40,6 +53,18 @@ describe('human pay errors', () => {
       'could not seal this call. try again',
     );
     assert.equal(humanPayError(new Error('ZeroSignal returned no text')), 'no reply. try again');
+    assert.equal(
+      humanPayError(new Error('forbidden (403)')),
+      'Free messages are used up. Please select a paid model using the settings menu access via the cog in the top left.',
+    );
+    assert.equal(
+      humanPayError(
+        new Error(
+          'daily free-request limit reached (20 per 24 hours); it resets in 16h 34m. This limit is protocol-wide, so other operators will refuse too — switch to a paid model to continue. (403)',
+        ),
+      ),
+      'Free messages are used up. Resets in 16h 34m. Please select a paid model using the settings menu access via the cog in the top left.',
+    );
     assert.equal(humanPayError(new Error('commit_k mismatch')), 'this call could not be opened. try again');
     assert.equal(humanPayError(new Error('reserve missing presigned_open_txn')), 'this call could not be opened. try again');
   });
@@ -77,9 +102,9 @@ describe('pay event reducer', () => {
     const warned = reducePayEvent(steps, {
       type: 'warning',
       step: 'settle',
-      message: 'charge will finish on-chain',
+      message: 'inference payment will finish on-chain',
     });
-    assert.equal(warned.warning, 'charge will finish on-chain');
+    assert.equal(warned.warning, 'inference payment will finish on-chain');
     assert.equal(warned.steps[0]?.state, 'active');
   });
 });

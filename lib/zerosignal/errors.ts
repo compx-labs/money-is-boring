@@ -45,6 +45,21 @@ export function humanPayError(err: unknown): string {
     return 'could not seal this call. try again';
   }
   if (lower.includes('returned no text')) return 'no reply. try again';
+  const freeReset = raw.match(/resets in\s+([0-9]+h(?:\s*[0-9]+m)?)/i);
+  if (
+    lower.includes('(403)') ||
+    lower.includes('forbidden') ||
+    lower.includes('quota') ||
+    lower.includes('free-request limit') ||
+    lower.includes('free tier') ||
+    lower.includes('out of free')
+  ) {
+    const paidHint =
+      'Please select a paid model using the settings menu access via the cog in the top left.';
+    return freeReset
+      ? `Free messages are used up. Resets in ${freeReset[1]}. ${paidHint}`
+      : `Free messages are used up. ${paidHint}`;
+  }
   if (lower.includes('inference failed')) return 'the node did not answer. try again';
   if (
     lower.includes('commit_k') ||

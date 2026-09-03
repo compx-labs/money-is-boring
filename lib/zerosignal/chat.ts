@@ -4,7 +4,7 @@ import { fromBaseUnits } from '@/lib/algorand/balances';
 import { b64Encode } from '@/lib/zerosignal/bytes';
 import type { ZsNode } from '@/lib/zerosignal/discover';
 import { composeOpen, ensureMbrDeposit, isEscrowOptedIn, isMbrPoolGuard, submitPresignedSettleGroup } from '@/lib/zerosignal/escrow';
-import type { PayListener, PayStep } from '@/lib/zerosignal/pay';
+import { ticketLocksUsdc, type PayListener, type PayStep } from '@/lib/zerosignal/pay';
 import {
   emptySseFields,
   failedResponseMessage,
@@ -48,7 +48,7 @@ export const MAX_OUTPUT = 2048;
 const MAX_PRICE_MICRO = 100_000;
 const RESERVE_MIN_TTL_SEC = 15;
 
-export type ChatTurn = { role: 'user' | 'assistant'; text: string };
+export type ChatTurn = { role: 'user' | 'assistant' | 'system'; text: string };
 export type { FunctionCall };
 export type StreamAcc = {
   text: string;
@@ -66,6 +66,16 @@ function openaiError(json: unknown, fallback: string, status: number): never {
   const message =
     (typeof err?.error === 'string' ? err.error : err?.error?.message) || err?.message || fallback;
   throw new Error(`${message} (${status})`);
+}
+
+async function readHttpJson(res: Response): Promise<unknown> {
+  const raw = await res.text().catch(() => '');
+  if (!raw.trim()) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return { message: raw.replace(/\s+/g, ' ').trim().slice(0, 160) };
+  }
 }
 
 function stripSlash(url: string): string {
@@ -126,7 +136,7 @@ async function reserveTicket(args: {
   });
 
   if (res.status !== 200) {
-    const json = await res.json().catch(() => null);
+    const json = await readHttpJson(res);
     const message =
       typeof json === 'object' && json
         ? String(
@@ -269,13 +279,18 @@ function bodyHashHexLocal(frames: Uint8Array[]): string {
   return Buffer.from(h.digest()).toString('hex');
 }
 
-async function waitToSign(
+/**
+ * Pause for the composer button, then Face ID on the next `store.sign`.
+ * Ticket-pool setup always confirms. Inference lock skips when that toggle is off.
+ */
+export async function maybeWaitToSpend(
   input: { onPay?: PayListener; awaitSign?: () => Promise<void> },
   step: PayStep,
   amountLabel?: string,
+  confirmInference = true,
 ): Promise<void> {
+  if (step === 'openEscrow' && !confirmInference) return;
   input.onPay?.({ type: 'step', step, amountLabel });
-  if (step === 'settle') return;
   await input.awaitSign?.();
 }
 
@@ -297,11 +312,12 @@ export async function sealedRound(input: {
   onPay?: PayListener;
   awaitSign?: () => Promise<void>;
   onDelta?: (text: string) => void;
+  confirmInference?: boolean;
 }): Promise<{ acc: StreamAcc; chargedMicro: number }> {
   const { node, store, keyId, address, body } = input;
+  const confirmInference = input.confirmInference ?? true;
   const identity = await newAgeIdentity();
 
-  await waitToSign(input, 'reserve');
   const reserved = await reserveTicket({
     node,
     store,
@@ -311,14 +327,15 @@ export async function sealedRound(input: {
     identity,
   });
   const lockLabel = fromBaseUnits(String(reserved.ticket.max_price), 6);
+  const locksUsdc = ticketLocksUsdc(reserved.ticket.max_price);
 
   if (!(await isEscrowOptedIn(address))) {
-    await waitToSign(input, 'fundPool');
+    await maybeWaitToSpend(input, 'fundPool');
     await ensureMbrDeposit(store, keyId, address);
   }
   let txids: string[];
   try {
-    await waitToSign(input, 'openEscrow', lockLabel);
+    if (locksUsdc) await maybeWaitToSpend(input, 'openEscrow', lockLabel, confirmInference);
     txids = (
       await composeOpen(store, keyId, {
         ticket: reserved.ticket,
@@ -329,9 +346,9 @@ export async function sealedRound(input: {
     ).txids;
   } catch (openErr) {
     if (!isMbrPoolGuard(openErr)) throw openErr;
-    await waitToSign(input, 'fundPool');
+    await maybeWaitToSpend(input, 'fundPool');
     await ensureMbrDeposit(store, keyId, address);
-    await waitToSign(input, 'openEscrow', lockLabel);
+    if (locksUsdc) await maybeWaitToSpend(input, 'openEscrow', lockLabel, confirmInference);
     txids = (
       await composeOpen(store, keyId, {
         ticket: reserved.ticket,
@@ -368,8 +385,8 @@ export async function sealedRound(input: {
     body: new TextDecoder().decode(envelope),
   });
   if (!infer.ok) {
-    const json = await infer.json().catch(() => null);
-    openaiError(json, 'inference failed', infer.status);
+    const json = await readHttpJson(infer);
+    openaiError(json, infer.status === 403 ? 'forbidden' : 'inference failed', infer.status);
   }
 
   const acc = await readSse(infer, {
@@ -392,8 +409,11 @@ export async function sealedRound(input: {
         throw new Error('receipt amount exceeds ticket max_price');
       }
       chargedMicro = acc.receipt.amount_charged;
-      if (acc.settleGroupB64) {
-        input.onPay?.({ type: 'step', step: 'settle' });
+      const toolOnly = namedFunctionCalls(acc.functionCalls).length > 0 && !acc.text.trim();
+      // Tool hops must settle or the next sealed open cannot start.
+      // Spoken hops must not — "paying for inference" + Face ID over the
+      // reply is the native crash after the answer lands.
+      if (acc.settleGroupB64 && toolOnly) {
         await submitPresignedSettleGroup(store, keyId, {
           settleGroupB64: acc.settleGroupB64,
           payerAddress: address,
@@ -401,18 +421,14 @@ export async function sealedRound(input: {
       }
     } catch (err) {
       if (isSignCancel(err) && !usable) throw err;
-      input.onPay?.({
-        type: 'warning',
-        step: 'settle',
-        message: 'charge will finish on-chain',
-      });
+      if (chargedMicro > 0) {
+        input.onPay?.({
+          type: 'warning',
+          step: 'settle',
+          message: 'inference payment will finish on-chain',
+        });
+      }
     }
-  } else if (usable) {
-    input.onPay?.({
-      type: 'warning',
-      step: 'settle',
-      message: 'charge will finish on-chain',
-    });
   }
 
   reserved.responseKey.fill(0);

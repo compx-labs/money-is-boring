@@ -84,13 +84,19 @@ function keyboardInset(event: KeyboardEvent): number {
   return overlap >= KEYBOARD_VISIBLE_MIN ? overlap : 0;
 }
 
-/** Bottom card: accent fill, chrome-bg lip, flush to the screen edges. Height hugs content. */
+/** Bottom card: accent fill, chrome-bg lip, flush to the screen edges. Height hugs content unless `heightFraction` is set. */
 export function SheetScaffold({
   children,
   onDismiss,
+  heightFraction,
+  dismissible = true,
 }: {
   children: React.ReactNode;
   onDismiss?: () => void;
+  /** Fraction of the window height. When set, the card stays that tall and scrolls instead of hugging. */
+  heightFraction?: number;
+  /** When false, backdrop tap and pan-to-dismiss are locked. */
+  dismissible?: boolean;
 }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -108,6 +114,8 @@ export function SheetScaffold({
   const popTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const onDismissRef = React.useRef(onDismiss);
   onDismissRef.current = onDismiss;
+  const dismissibleRef = React.useRef(dismissible);
+  dismissibleRef.current = dismissible;
   const [closing, setClosing] = React.useState(false);
   const [reduceMotion, setReduceMotion] = React.useState(false);
   const [bodyH, setBodyH] = React.useState(0);
@@ -207,6 +215,7 @@ export function SheetScaffold({
   }, []);
 
   const dismiss = React.useCallback(() => {
+    if (!dismissibleRef.current) return;
     if (closingRef.current) return;
     closingRef.current = true;
     setClosing(true);
@@ -224,7 +233,8 @@ export function SheetScaffold({
   const pan = React.useMemo(
     () =>
       PanResponder.create({
-        onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 4,
+        onMoveShouldSetPanResponder: (_, g) =>
+          dismissibleRef.current && Math.abs(g.dy) > 4,
         onPanResponderMove: (_, g) => {
           translateY.setValue(rubberOffset(g.dy));
         },
@@ -242,7 +252,11 @@ export function SheetScaffold({
 
   const maxH = height - insets.top - keyboardH;
   const bodyMax = Math.max(120, maxH - CHROME);
-  const capped = bodyH > bodyMax;
+  const sheetH =
+    heightFraction != null ? Math.min(Math.round(height * heightFraction), maxH) : undefined;
+  const bodyFixed = sheetH != null ? Math.max(120, sheetH - CHROME) : undefined;
+  const hugCapped = bodyFixed == null && bodyH > bodyMax;
+  const scrollBody = bodyFixed != null || hugCapped;
   const sheetY = React.useMemo(
     () => Animated.add(translateY, Animated.multiply(keyboardLift, -1)),
     [keyboardLift, translateY],
@@ -252,11 +266,11 @@ export function SheetScaffold({
     (event: LayoutChangeEvent) => {
       const next = event.nativeEvent.layout.height;
       setBodyH((prev) => {
-        if (capped) return prev;
+        if (hugCapped) return prev;
         return Math.abs(prev - next) < 1 ? prev : next;
       });
     },
-    [capped],
+    [hugCapped],
   );
 
   return (
@@ -266,6 +280,8 @@ export function SheetScaffold({
           <Pressable
             style={styles.backdrop}
             onPress={dismiss}
+            disabled={!dismissible}
+            accessible={dismissible}
             accessibilityRole="button"
             accessibilityLabel="Dismiss"
           />
@@ -276,13 +292,14 @@ export function SheetScaffold({
                 left: 0,
                 right: 0,
                 bottom: 0,
+                ...(sheetH != null ? { height: sheetH } : {}),
                 maxHeight: maxH,
                 transform: [{ translateY: sheetY }],
                 shadowColor: ink,
               },
             ]}
           >
-            <View style={[styles.card, { backgroundColor: accent }]}>
+            <View style={[styles.card, sheetH != null ? styles.cardFill : null, { backgroundColor: accent }]}>
               <View style={styles.chrome} {...pan.panHandlers}>
                 <Chamfer fill={bg} style={styles.lip} />
                 <View style={styles.handleHit}>
@@ -290,10 +307,10 @@ export function SheetScaffold({
                 </View>
               </View>
               <View
-                onLayout={capped ? undefined : onBodyLayout}
-                style={capped ? { height: bodyMax } : styles.bodyWrap}
+                onLayout={scrollBody ? undefined : onBodyLayout}
+                style={scrollBody ? { height: bodyFixed ?? bodyMax } : styles.bodyWrap}
               >
-                {capped ? (
+                {scrollBody ? (
                   <ScrollView
                     style={styles.bodyScroll}
                     contentContainerStyle={styles.body}
@@ -331,6 +348,9 @@ const styles = StyleSheet.create({
   },
   card: {
     overflow: 'hidden',
+  },
+  cardFill: {
+    flex: 1,
   },
   chrome: {
     alignSelf: 'stretch',

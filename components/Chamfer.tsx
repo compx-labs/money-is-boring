@@ -78,21 +78,28 @@ export function Chamfer({
   contentStyle?: StyleProp<ViewStyle>;
 }) {
   const { accent } = useAccent();
-  const [box, setBox] = React.useState({ width: 0, height: 0 });
+  const [box, setBox] = React.useState({ width: 0, height: 0, inset: 0 });
 
   const onLayout = (event: LayoutChangeEvent) => {
-    const { width, height } = event.nativeEvent.layout;
-    setBox((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
+    const width = Math.round(event.nativeEvent.layout.width);
+    const height = Math.round(event.nativeEvent.layout.height);
+    setBox((prev) => {
+      if (prev.width === width && prev.height === height) return prev;
+      // Freeze inset after the first measure for this width. Tracking live height
+      // would grow the cut, wrap text, and loop. SVG still uses full height.
+      const inset =
+        prev.width === width && prev.inset > 0
+          ? prev.inset
+          : Math.round(chamferCut(width, height || 48));
+      return { width, height, inset };
+    });
   };
 
   const flat = StyleSheet.flatten(style) ?? {};
   const inner = StyleSheet.flatten(contentStyle) ?? {};
   const padL = numericPad(inner.paddingLeft ?? inner.paddingHorizontal ?? inner.padding);
   const padR = numericPad(inner.paddingRight ?? inner.paddingHorizontal ?? inner.padding);
-  // Padding must not track measured height — wrapping text would grow the cut,
-  // add inset, wrap again, and loop (Maximum update depth). SVG still uses full height.
-  const cut =
-    contentInset && box.width > 0 ? chamferCut(box.width, Math.min(box.height || 48, 48)) : 0;
+  const cut = contentInset && box.inset > 0 ? box.inset : 0;
 
   const face = (
     <View style={style} onLayout={onLayout}>
@@ -170,6 +177,7 @@ const styles = StyleSheet.create({
   },
   content: {
     zIndex: 1,
+    alignSelf: 'stretch',
   },
   shadowClip: {
     overflow: 'hidden',

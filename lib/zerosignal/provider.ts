@@ -18,6 +18,7 @@ export type ZsInferenceSession = {
   address: string;
   onPay?: PayListener;
   awaitSign?: () => Promise<void>;
+  confirmInference?: boolean;
   chargedMicro: number;
 };
 
@@ -66,6 +67,7 @@ export function createZerosignalStream(session: ZsInferenceSession): StreamFn {
           body,
           onPay: session.onPay,
           awaitSign: session.awaitSign,
+          confirmInference: session.confirmInference,
           onDelta: (text) => {
             for (const event of applyTextDelta(output, soFar, text)) {
               stream.push(event);

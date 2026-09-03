@@ -1,20 +1,23 @@
-import { canixProvider } from '@/lib/canix/tools';
+import { httpSuiteProvider, type CompiledHttpTool } from '@/lib/agent/http-tools';
 import { walletProvider } from '@/lib/agent/wallet';
 import type { AgentToolContext, AgentToolProvider } from '@/lib/agent/types';
-
-const providers: AgentToolProvider[] = [walletProvider, canixProvider];
 
 export const AGENT_SYSTEM_PROMPT =
   'You are the in-wallet agent for Money is Boring, a simple Algorand wallet. Be concise. Tools run on this device against remotes. This wallet signs and submits; remotes do not broadcast. Never claim a swap or transfer landed unless a tool returned a transaction id. Do not mention internal spend limits or bypass API keys. Standing prefs and notes are on-device memory, not live chain state. Fetch balances, prices, and positions with tools now.';
 
-export function agentToolSchemas() {
-  return providers.flatMap((provider) => provider.tools);
+function providersFor(suite: CompiledHttpTool[] = []): AgentToolProvider[] {
+  return suite.length > 0 ? [walletProvider, httpSuiteProvider(suite)] : [walletProvider];
+}
+
+export function agentToolSchemas(suite: CompiledHttpTool[] = []) {
+  return providersFor(suite).flatMap((provider) => provider.tools);
 }
 
 export async function runAgentTool(
   name: string,
   rawArgs: string,
   ctx: AgentToolContext,
+  suite: CompiledHttpTool[] = [],
 ): Promise<{ output: string; paidMicro: bigint }> {
   let args: Record<string, unknown> = {};
   if (rawArgs.trim()) {
@@ -29,7 +32,7 @@ export async function runAgentTool(
   }
 
   try {
-    for (const provider of providers) {
+    for (const provider of providersFor(suite)) {
       const result = await provider.run(name, args, ctx);
       if (result) return { output: JSON.stringify(result.body), paidMicro: result.paidMicro };
     }

@@ -222,7 +222,13 @@ export function failPay(token: number, message: string, step: PayStep): void {
   if (token !== generation) return;
   flushPayDelta(token);
   applyPayEvent({ type: 'error', step, message });
-  agentPayStore.setState((s) => ({ ...s, phase: 'error', error: message, awaitingConfirm: false }));
+  agentPayStore.setState((s) => ({
+    ...s,
+    phase: 'error',
+    error: message,
+    streamed: message,
+    awaitingConfirm: false,
+  }));
 }
 
 export function setPayError(message: string): void {

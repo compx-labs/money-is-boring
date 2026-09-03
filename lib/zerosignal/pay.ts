@@ -60,12 +60,19 @@ export function reducePayEvent(
   return { steps: next };
 }
 
+/** In-app confirm + Face ID. Only when money moves. */
 export function isSignStep(step: PayStep): boolean {
-  return step === 'reserve' || step === 'fundPool' || step === 'openEscrow';
+  return step === 'fundPool' || step === 'openEscrow';
+}
+
+/** Ticket max_price is microUSDC. Zero is a free call — no lock button. */
+export function ticketLocksUsdc(maxPriceMicro: unknown): boolean {
+  const n = typeof maxPriceMicro === 'bigint' ? Number(maxPriceMicro) : Number(maxPriceMicro);
+  return Number.isFinite(n) && n > 0;
 }
 
 export function payStepLabel(step: PayStep, amountLabel?: string): string {
-  if (isToolStep(step)) return step.slice('tool:'.length);
+  if (isToolStep(step)) return toolBusyLabel(step.slice('tool:'.length));
   switch (step) {
     case 'discover':
       return 'finding a node';
@@ -73,17 +80,30 @@ export function payStepLabel(step: PayStep, amountLabel?: string): string {
       return 'approve this call';
     case 'fundPool':
       return `deposit ${TICKET_POOL_ALGO} ALGO for the ticket pool`;
-    case 'openEscrow':
-      return amountLabel ? `lock up to ${amountLabel} USDC` : 'lock up to 0.10 USDC';
+    case 'openEscrow': {
+      const amount = amountLabel?.trim() ?? '';
+      if (!amount || amount === '0') return 'lock up to 0.10 USDC';
+      return `lock up to ${amount} USDC`;
+    }
     case 'think':
       return 'thinking';
     case 'settle':
-      return 'charging';
+      return 'paying for inference';
+  }
+}
+
+function toolBusyLabel(name: string): string {
+  switch (name) {
+    case 'wallet_holdings':
+      return 'checking balances';
+    default:
+      return 'working';
   }
 }
 
 /** Short label for the sheet button. Description stays on `payStepLabel`. */
 export function payStepAction(step: PayStep, amountLabel?: string): string {
   if (step === 'fundPool') return `deposit ${TICKET_POOL_ALGO} ALGO`;
+  if (isToolStep(step)) return 'allow';
   return payStepLabel(step, amountLabel);
 }

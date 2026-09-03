@@ -2,12 +2,15 @@ import type { KeyStoreAPI } from '@algorandfoundation/react-native-keystore';
 import { runAgentLoop } from '@mariozechner/pi-agent-core';
 import type { AgentMessage, AgentToolResult } from '@mariozechner/pi-agent-core';
 import type { AssistantMessage, Message } from '@mariozechner/pi-ai';
+import { shouldFaceIdAtTurnStart } from '@/lib/agent/confirm';
+import { spokenHistory } from '@/lib/agent/history';
 import { AGENT_SYSTEM_PROMPT } from '@/lib/agent/host';
+import type { CompiledHttpTool } from '@/lib/agent/http-tools';
 import { createWalletInference } from '@/lib/agent/inference';
 import { hostToolsAsPi, type HostToolDetails } from '@/lib/agent/pi-tools';
 import { replyFromToolResults } from '@/lib/agent/tool-reply';
+import { wrapTurnSigner } from '@/lib/agent/turn-auth';
 import { formatNotebookPreamble, lastTurns, loadNotebookContext } from '@/lib/notebook';
-import { ZS_MODEL } from '@/lib/theme';
 import { MAX_OUTPUT, type ChatTurn } from '@/lib/zerosignal/chat';
 import { ZS_API, ZS_PROVIDER } from '@/lib/zerosignal/context';
 import { discoverZsNode } from '@/lib/zerosignal/discover';
@@ -47,7 +50,7 @@ function priorAssistant(text: string, modelId: string): AssistantMessage {
 }
 
 function historyToPi(history: ChatTurn[], modelId: string): { prior: Message[]; prompt: Message } {
-  const turns = lastTurns(history);
+  const turns = lastTurns(spokenHistory(history));
   const last = turns[turns.length - 1];
   if (!last || last.role !== 'user') {
     throw new Error('Agent turn needs a user message');
@@ -87,6 +90,14 @@ function toolResultText(message: AgentMessage): string {
     .join('');
 }
 
+function toolReplies(messages: AgentMessage[]): Array<{ toolName: string; text: string; isError?: boolean }> {
+  return messages.flatMap((message) =>
+    message.role === 'toolResult'
+      ? [{ toolName: message.toolName, text: toolResultText(message), isError: message.isError }]
+      : [],
+  );
+}
+
 function paidMicroOf(result: unknown): bigint {
   if (!result || typeof result !== 'object') return 0n;
   const details = (result as AgentToolResult<HostToolDetails>).details;
@@ -102,15 +113,25 @@ export async function sendAgentMessage(input: {
   keyId: string;
   address: string;
   history: ChatTurn[];
+  model: string;
+  suite?: CompiledHttpTool[];
   onPay?: PayListener;
   awaitSign?: () => Promise<void>;
   onDelta?: (text: string) => void;
+  confirmTools?: boolean;
+  confirmInference?: boolean;
 }): Promise<{ text: string; chargedMicro: number; toolsMicro: bigint }> {
-  const { store, keyId, address } = input;
+  const confirmTools = input.confirmTools ?? true;
+  const confirmInference = input.confirmInference ?? true;
+  const store = wrapTurnSigner(
+    input.store,
+    shouldFaceIdAtTurnStart({ confirmTools, confirmInference }),
+  );
+  const { keyId, address } = input;
   const latestUser = [...input.history].reverse().find((turn) => turn.role === 'user')?.text ?? '';
   input.onPay?.({ type: 'step', step: 'discover' });
   const [node, notebook] = await Promise.all([
-    discoverZsNode(ZS_MODEL),
+    discoverZsNode(input.model),
     loadNotebookContext(latestUser),
   ]);
 
@@ -121,6 +142,7 @@ export async function sendAgentMessage(input: {
     address,
     onPay: input.onPay,
     awaitSign: input.awaitSign,
+    confirmInference,
     chargedMicro: 0,
   };
   const inference = createWalletInference('zerosignal', session);
@@ -137,7 +159,11 @@ export async function sendAgentMessage(input: {
     {
       systemPrompt: `${AGENT_SYSTEM_PROMPT}\n\n${preamble}`,
       messages: prior,
-      tools: hostToolsAsPi({ store, keyId, address }),
+      tools: hostToolsAsPi(
+        { store, keyId, address },
+        input.suite ?? [],
+        { confirmTools, awaitSign: input.awaitSign },
+      ),
     },
     {
       model: inference.model,
@@ -175,19 +201,13 @@ export async function sendAgentMessage(input: {
   );
 
   const last = [...messages].reverse().find((message) => message.role === 'assistant');
+  const fallback = replyFromToolResults(toolReplies(messages));
   if (last?.role === 'assistant' && (last.stopReason === 'error' || last.stopReason === 'aborted')) {
+    if (fallback) return { text: fallback, chargedMicro: session.chargedMicro, toolsMicro };
     throw new Error(last.errorMessage || 'ZeroSignal inference failed');
   }
 
-  const text =
-    collectAssistantText(messages) ||
-    replyFromToolResults(
-      messages.flatMap((message) =>
-        message.role === 'toolResult'
-          ? [{ toolName: message.toolName, text: toolResultText(message), isError: message.isError }]
-          : [],
-      ),
-    );
+  const text = collectAssistantText(messages) || fallback;
   if (!text) throw new Error('ZeroSignal returned no text');
   return { text, chargedMicro: session.chargedMicro, toolsMicro };
 }

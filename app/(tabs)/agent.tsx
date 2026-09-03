@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -23,14 +24,17 @@ import { useProvider } from '@/hooks/useProvider';
 import { useWalletBalances } from '@/hooks/useWalletBalances';
 import { algorandAddressFromKey, findWalletAccount } from '@/lib/keystore/wallet-account';
 import { fromBaseUnits } from '@/lib/algorand/balances';
-import type { ChatTurn } from '@/lib/agent/turn';
+import { CONFIRM_HINT, shouldShowConfirmHint } from '@/lib/agent/confirm';
+import { spokenHistory } from '@/lib/agent/history';
+import { formatLoadedToolsMessage } from '@/lib/agent/http-tools';
 import { startQueuedPay } from '@/lib/agent/pay-job';
 import { agentGate } from '@/lib/agent/ready';
 import { isSetupDone } from '@/lib/agent/setup';
-import { prepareLayoutSpring } from '@/lib/motion/layout';
-import { fonts, USDC_ASA_ID } from '@/lib/theme';
+import type { ChatTurn } from '@/lib/agent/turn';
+import { colors, fonts, USDC_ASA_ID } from '@/lib/theme';
 import { isEscrowOptedIn } from '@/lib/zerosignal/escrow';
-import { payStepAction, payStepLabel } from '@/lib/zerosignal/pay';
+import { isToolStep, payStepAction, payStepLabel } from '@/lib/zerosignal/pay';
+import { agentConfirmStore, markConfirmHintShown } from '@/stores/agent-confirm';
 import {
   activePayStep,
   agentPayStore,
@@ -39,11 +43,14 @@ import {
   queueAgentTurn,
   resetAgentPay,
 } from '@/stores/agent-turn';
+import { agentToolsStore } from '@/stores/agent-tools';
 
 const SCREEN_PAD = 28;
 const ACTION_HEIGHT = 48;
 const ACTION_WIDTH = 120;
 const ACTION_HANG = 70;
+const SUITE_LOGO = 20;
+const SUITE_LIST_ID = 'suite-list';
 
 type Bubble = ChatTurn & { id: string };
 
@@ -63,6 +70,48 @@ function SettingsCog({ onPress }: { onPress: () => void }) {
   );
 }
 
+function SuiteStrip({
+  name,
+  logo,
+  count,
+  onShowTools,
+}: {
+  name: string;
+  logo: string;
+  count: number;
+  onShowTools: () => void;
+}) {
+  const [failed, setFailed] = React.useState(false);
+  const letter = (name.trim().charAt(0) || '?').toUpperCase();
+  const showImage = Boolean(logo) && !failed;
+
+  React.useEffect(() => {
+    setFailed(false);
+  }, [logo]);
+
+  return (
+    <View style={styles.suiteRow}>
+      <View style={styles.suiteLogo} accessibilityIgnoresInvertColors>
+        {showImage ? (
+          <Image source={{ uri: logo }} style={styles.suiteLogoImage} onError={() => setFailed(true)} />
+        ) : (
+          <Text style={styles.suiteLetter}>{letter}</Text>
+        )}
+      </View>
+      <Text style={styles.suiteName} numberOfLines={1}>{`${name} - `}</Text>
+      <HapticPressable
+        onPress={onShowTools}
+        accessibilityRole="button"
+        accessibilityLabel={`${name}, ${count} tools loaded. show list`}
+        hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+        style={styles.suiteLinkHit}
+      >
+        <Text style={styles.suiteLink}>{`${count} tools loaded`}</Text>
+      </HapticPressable>
+    </View>
+  );
+}
+
 function chargeLine(pay: {
   chargedMicro: number;
   toolsMicro: bigint;
@@ -72,7 +121,9 @@ function chargeLine(pay: {
     pay.chargedMicro > 0 ? `ZeroSignal · ${fromBaseUnits(String(pay.chargedMicro), 6)} USDC` : '';
   const tools =
     pay.toolsMicro > 0n ? `tools · ${fromBaseUnits(String(pay.toolsMicro), 6)} USDC` : '';
-  return [zs, tools, pay.warning].filter(Boolean).join(' · ');
+  const paid = pay.chargedMicro > 0 || pay.toolsMicro > 0n;
+  const warning = paid ? pay.warning : '';
+  return [zs, tools, warning].filter(Boolean).join(' · ');
 }
 
 export default function Agent() {
@@ -86,6 +137,7 @@ export default function Agent() {
   const { tabFill, ink } = useChrome();
   const balances = useWalletBalances(address);
   const pay = useStore(agentPayStore, (state) => state);
+  const suite = useStore(agentToolsStore, (state) => state);
   const [starting, setStarting] = React.useState(false);
   const [setupDone, setSetupDone] = React.useState(false);
   const [escrow, setEscrow] = React.useState<boolean | null>(null);
@@ -107,7 +159,10 @@ export default function Agent() {
     pay.phase === 'error';
   const active = activePayStep(pay.steps);
   const chatBusy =
-    pay.phase === 'running' && !pay.awaitingConfirm && active
+    pay.phase === 'running' &&
+    active &&
+    active.step !== 'settle' &&
+    (!pay.awaitingConfirm || isToolStep(active.step))
       ? payStepLabel(active.step, active.amountLabel)
       : '';
   const awaitingSign = pay.kind === 'turn' && pay.awaitingConfirm;
@@ -155,7 +210,6 @@ export default function Agent() {
 
   React.useEffect(() => {
     if (pay.phase === 'cancelled') {
-      prepareLayoutSpring();
       setMessages((prev) => prev.filter((m) => m.id !== pay.userId && m.id !== pay.assistantId));
       setDraft(pay.draft);
       resetAgentPay();
@@ -168,24 +222,26 @@ export default function Agent() {
       return;
     }
     if (pay.phase === 'done') {
-      prepareLayoutSpring();
       const streamed = agentPayStore.state.streamed;
-      setMessages((prev) =>
-        prev.map((m) => (m.id === pay.assistantId ? { ...m, text: streamed } : m)),
-      );
+      const showHint = Boolean(streamed.trim()) && shouldShowConfirmHint(agentConfirmStore.state);
+      setMessages((prev) => {
+        const next = prev.map((m) => (m.id === pay.assistantId ? { ...m, text: streamed } : m));
+        if (!showHint) return next;
+        return [...next, { id: `hint-${Date.now()}`, role: 'system', text: CONFIRM_HINT }];
+      });
+      if (showHint) markConfirmHintShown();
       setResult(chargeLine(pay));
       resetAgentPay();
       return;
     }
     if (pay.phase === 'error' && pay.kind === 'turn') {
       const line = pay.error || 'this call failed. try again';
-      console.warn('[agent]', line);
-      prepareLayoutSpring();
+      const assistantId = pay.assistantId;
       setMessages((prev) =>
-        prev.map((m) => (m.id === pay.assistantId ? { ...m, text: line } : m)),
+        prev.map((m) => (m.id === assistantId ? { ...m, text: line } : m)),
       );
-      setResult('');
       resetAgentPay();
+      return;
     }
   }, [pay.phase, pay.kind, pay.assistantId, pay.userId, pay.draft, pay.chargedMicro, pay.toolsMicro, pay.warning, pay.error]);
 
@@ -210,12 +266,8 @@ export default function Agent() {
         needsPool = false;
       }
       const user: Bubble = { id: `u-${Date.now()}`, role: 'user', text };
-      const history: ChatTurn[] = [...messages, user].map(({ role, text: t }) => ({
-        role,
-        text: t,
-      }));
+      const history: ChatTurn[] = spokenHistory([...messages, user]);
       const assistantId = `a-${Date.now()}`;
-      prepareLayoutSpring();
       setDraft('');
       setResult('');
       setMessages((prev) => [...prev, user, { id: assistantId, role: 'assistant', text: '' }]);
@@ -255,6 +307,15 @@ export default function Agent() {
 
   const onOpenSettings = () => {
     router.push('/agent-settings');
+  };
+
+  const onShowTools = () => {
+    if (!suite || suite.tools.length === 0) return;
+    const text = formatLoadedToolsMessage(suite);
+    setMessages((prev) => {
+      const rest = prev.filter((m) => m.id !== SUITE_LIST_ID);
+      return [...rest, { id: SUITE_LIST_ID, role: 'system', text }];
+    });
   };
 
   const screenPad = {
@@ -305,25 +366,38 @@ export default function Agent() {
           contentContainerStyle={styles.chatContent}
           keyboardShouldPersistTaps="handled"
         >
-          {messages.map((m) => (
-            <SpringInsert key={m.id}>
-              <Chamfer
-                fill={m.role === 'user' ? accent : surface}
-                style={[styles.bubble, m.role === 'user' ? styles.user : styles.assistant]}
-                contentStyle={styles.bubbleInner}
-              >
-                <Text
-                  style={
-                    m.role === 'user'
-                      ? [styles.userText, { color: onAccent }]
+          {messages.map((m) => {
+            const isUser = m.role === 'user';
+            const isHint = m.role === 'system';
+            const copy = (
+              <Text
+                style={
+                  isUser
+                    ? [styles.userText, { color: onAccent }]
+                    : isHint
+                      ? [styles.systemText, { color: ink }]
                       : [styles.assistantText, { color: ink }]
-                  }
-                >
-                  {m.text || '…'}
-                </Text>
-              </Chamfer>
-            </SpringInsert>
-          ))}
+                }
+              >
+                {m.text || '…'}
+              </Text>
+            );
+            return (
+              <SpringInsert key={m.id}>
+                {isHint ? (
+                  <View style={[styles.system, { borderColor: accent }]}>{copy}</View>
+                ) : (
+                  <Chamfer
+                    fill={isUser ? accent : surface}
+                    style={[styles.bubble, isUser ? styles.user : styles.assistant]}
+                    contentStyle={styles.bubbleInner}
+                  >
+                    {copy}
+                  </Chamfer>
+                )}
+              </SpringInsert>
+            );
+          })}
           {chatBusy ? (
             <SpringInsert key="busy">
               <Text style={[styles.meta, { color: ink }]}>{chatBusy}</Text>
@@ -365,6 +439,14 @@ export default function Agent() {
             accessibilityLabel={awaitingSign ? signLabel : 'send'}
           />
         </View>
+        {suite && suite.tools.length > 0 ? (
+          <SuiteStrip
+            name={suite.name}
+            logo={suite.logo}
+            count={suite.tools.length}
+            onShowTools={onShowTools}
+          />
+        ) : null}
       </View>
     </KeyboardAvoidingView>
   );
@@ -419,6 +501,14 @@ const styles = StyleSheet.create({
   assistant: {
     alignSelf: 'flex-start',
   },
+  system: {
+    alignSelf: 'stretch',
+    borderWidth: 2,
+    borderRadius: 0,
+    paddingLeft: 12,
+    paddingRight: 12,
+    paddingVertical: 12,
+  },
   userText: {
     fontFamily: fonts.regular,
     fontSize: 22,
@@ -428,6 +518,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: 22,
     lineHeight: 30,
+  },
+  systemText: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 13,
+    lineHeight: 18,
   },
   meta: {
     fontFamily: fonts.regular,
@@ -454,5 +549,49 @@ const styles = StyleSheet.create({
     fontSize: 17,
     padding: 0,
     margin: 0,
+  },
+  suiteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 8,
+    maxWidth: '100%',
+  },
+  suiteLogo: {
+    width: SUITE_LOGO,
+    height: SUITE_LOGO,
+    borderRadius: SUITE_LOGO / 2,
+    backgroundColor: colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  suiteLogoImage: {
+    width: SUITE_LOGO,
+    height: SUITE_LOGO,
+  },
+  suiteLetter: {
+    color: colors.buttonText,
+    fontFamily: fonts.semibold,
+    fontSize: 11,
+    lineHeight: 13,
+  },
+  suiteName: {
+    color: colors.dim,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 13,
+    lineHeight: 18,
+    flexShrink: 1,
+  },
+  suiteLinkHit: {
+    flexShrink: 0,
+  },
+  suiteLink: {
+    color: colors.dim,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 13,
+    lineHeight: 18,
+    textDecorationLine: 'underline',
   },
 });

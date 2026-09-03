@@ -10,7 +10,7 @@
     "ios": "expo run:ios --device",
     "prebuild": "expo prebuild",
     "type-check": "tsc --noEmit",
-    "test": "tsx --test lib/notebook/*.test.ts lib/agent/*.test.ts lib/zerosignal/*.test.ts",
+    "test": "tsx --test lib/notebook/*.test.ts lib/agent/*.test.ts lib/zerosignal/*.test.ts lib/algorand/*.test.ts lib/keystore/*.test.ts lib/x402/*.test.ts",
     "postinstall": "patch-package"
   },
   "dependencies": {
