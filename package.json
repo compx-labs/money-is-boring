@@ -75,6 +75,9 @@
       "@tanstack/store": "0.9.3",
       "react-native-mmkv": "$react-native-mmkv",
       "react-native-quick-crypto": "$react-native-quick-crypto"
+    },
+    "patchedDependencies": {
+      "@expo/cli@54.0.27": "patches/@expo__cli@54.0.27.patch"
     }
   },
   "packageManager": "pnpm@10.28.2"
