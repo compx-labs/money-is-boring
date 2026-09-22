@@ -133,7 +133,7 @@ export default function Agent() {
   const { keys, accounts, key } = useProvider();
   const wallet = findWalletAccount(accounts, keys);
   const address = wallet ? algorandAddressFromKey(wallet.key) : '';
-  const { accent, surface, onAccent } = useAccent();
+  const { accent, onAccent } = useAccent();
   const { tabFill, ink } = useChrome();
   const balances = useWalletBalances(address);
   const pay = useStore(agentPayStore, (state) => state);
@@ -386,14 +386,16 @@ export default function Agent() {
               <SpringInsert key={m.id}>
                 {isHint ? (
                   <View style={[styles.system, { borderColor: accent }]}>{copy}</View>
-                ) : (
+                ) : isUser ? (
                   <Chamfer
-                    fill={isUser ? accent : surface}
-                    style={[styles.bubble, isUser ? styles.user : styles.assistant]}
+                    fill={accent}
+                    style={[styles.bubble, styles.user]}
                     contentStyle={styles.bubbleInner}
                   >
                     {copy}
                   </Chamfer>
+                ) : (
+                  <View style={styles.assistant}>{copy}</View>
                 )}
               </SpringInsert>
             );
@@ -499,7 +501,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   assistant: {
-    alignSelf: 'flex-start',
+    alignSelf: 'stretch',
   },
   system: {
     alignSelf: 'stretch',
