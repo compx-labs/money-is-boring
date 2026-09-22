@@ -82,6 +82,8 @@ function RootNavigation({
           <Stack.Screen name="profile" options={sheetScreenOptions} />
           <Stack.Screen name="merchant/[id]" options={sheetScreenOptions} />
           <Stack.Screen name="add-asset" options={sheetScreenOptions} />
+          <Stack.Screen name="agent-pay" options={sheetScreenOptions} />
+          <Stack.Screen name="agent-settings" options={sheetScreenOptions} />
         </Stack>
       ) : null}
       {doorsGone ? null : (

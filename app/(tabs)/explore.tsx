@@ -29,7 +29,7 @@ export default function Explore() {
       style={styles.scroll}
       contentContainerStyle={[
         styles.screen,
-        { paddingTop: insets.top + 36, paddingBottom: 24 },
+        { paddingTop: insets.top + 36, paddingBottom: Math.max(insets.bottom, 12) + 72 },
       ]}
     >
       <Text style={[styles.title, { color: accent }]}>Explore</Text>

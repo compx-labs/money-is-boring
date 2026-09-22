@@ -5,6 +5,7 @@ import {
   Pressable,
   StyleSheet,
   type PressableProps,
+  type PressableStateCallbackType,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
@@ -14,7 +15,7 @@ import { pressInSpring, pressOutSpring } from '@/lib/motion/press';
 type PressableStyle = PressableProps['style'];
 
 function layoutFrom(style: PressableStyle): ViewStyle {
-  const resolved = typeof style === 'function' ? style({ pressed: false }) : style;
+  const resolved = typeof style === 'function' ? style({ pressed: false } as PressableStateCallbackType) : style;
   const flat = StyleSheet.flatten(resolved as StyleProp<ViewStyle>) ?? {};
   return {
     flex: flat.flex,

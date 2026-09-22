@@ -1,10 +1,17 @@
 import React from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
+import { useStore } from '@tanstack/react-store';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Chamfer } from '@/components/Chamfer';
+import { HapticPressable } from '@/components/HapticPressable';
 import { SheetScaffold } from '@/components/SheetScaffold';
+import { useAccent } from '@/hooks/useAccent';
 import { useChrome } from '@/hooks/useChrome';
+import { compileMerchantSuite } from '@/lib/agent/http-tools';
 import { getCachedMerchant, loadX402Merchant, type X402Merchant } from '@/lib/x402/merchants';
 import { colors, fonts } from '@/lib/theme';
+import { agentToolsStore, setLoadedSuite } from '@/stores/agent-tools';
 
 const LOGO = 64;
 
@@ -38,8 +45,26 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function MerchantBody({ merchant }: { merchant: X402Merchant }) {
-  const { bg } = useChrome();
+  const { bg, ink } = useChrome();
+  const { accent } = useAccent();
+  const suite = useStore(agentToolsStore, (state) => state);
+  const live = suite?.merchantId === merchant.id;
   const [logoFailed, setLogoFailed] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [loadError, setLoadError] = React.useState('');
+
+  const onLoad = async () => {
+    if (busy) return;
+    setBusy(true);
+    setLoadError('');
+    try {
+      setLoadedSuite(await compileMerchantSuite(merchant));
+    } catch (e) {
+      setLoadError(e instanceof Error && e.message === 'no tools listed' ? 'no tools listed' : 'couldn’t load tools');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <View style={styles.screen}>
@@ -56,6 +81,26 @@ function MerchantBody({ merchant }: { merchant: X402Merchant }) {
           )}
         </View>
         <Text style={[styles.name, { color: bg }]}>{merchant.name}</Text>
+        <HapticPressable
+          onPress={() => {
+            void onLoad();
+          }}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel={live ? 'Agent loaded' : 'Load agent'}
+          accessibilityState={{ selected: live, busy }}
+          style={[styles.loadPress, busy && styles.loadBusy]}
+        >
+          <Chamfer
+            fill={bg}
+            stroke={live ? accent : undefined}
+            strokeWidth={live ? 2 : 0}
+            style={styles.loadFace}
+            contentStyle={styles.loadInner}
+          >
+            <MaterialCommunityIcons name="robot-outline" size={20} color={live ? accent : ink} />
+          </Chamfer>
+        </HapticPressable>
       </View>
 
       <Text style={[styles.description, { color: bg }]}>{merchant.description}</Text>
@@ -80,6 +125,8 @@ function MerchantBody({ merchant }: { merchant: X402Merchant }) {
           <Stat label="volume" value={formatVolume(merchant.volume)} />
         ) : null}
       </View>
+
+      {loadError ? <Text style={[styles.error, { color: bg }]}>{loadError}</Text> : null}
     </View>
   );
 }
@@ -160,6 +207,25 @@ const styles = StyleSheet.create({
     lineHeight: 34,
     letterSpacing: 1,
   },
+  loadPress: {
+    width: 72,
+    height: 44,
+    justifyContent: 'center',
+    marginRight: -8,
+    flexShrink: 0,
+  },
+  loadFace: {
+    width: 72,
+    height: 32,
+  },
+  loadInner: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadBusy: {
+    opacity: 0.6,
+  },
   description: {
     fontFamily: fonts.regular,
     fontSize: 18,
@@ -195,5 +261,9 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: 26,
     lineHeight: 36,
+  },
+  error: {
+    fontFamily: fonts.regular,
+    fontSize: 15,
   },
 });

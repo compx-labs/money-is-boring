@@ -93,18 +93,6 @@ function ProfileBody() {
         </Chamfer>
       </HapticPressable>
 
-      {nickname && !editing ? (
-        <View
-          style={styles.nicknameRow}
-          accessible
-          accessibilityRole="text"
-          accessibilityLabel={`Nickname: ${nickname}`}
-        >
-          <Text style={[styles.nicknameLabel, { color: bg }]}>Nickname:</Text>
-          <Text style={[styles.nickname, { color: bg }]}>{nickname}</Text>
-        </View>
-      ) : null}
-
       {editing ? (
         <View style={styles.composer}>
           <Chamfer fill={bg} style={styles.inputFace} contentStyle={styles.inputInner}>
@@ -125,10 +113,23 @@ function ProfileBody() {
           <ChamferButton label="save" onPress={onSave} compact overlap />
         </View>
       ) : (
-        <ChamferButton
-          label={nickname ? 'edit nickname' : 'set nickname'}
-          onPress={onEdit}
-        />
+        <View style={styles.nicknameRow}>
+          <Text style={[styles.nicknameLabel, { color: bg }]}>Nickname:</Text>
+          {nickname ? (
+            <Text
+              style={[styles.nickname, { color: bg }]}
+              accessibilityLabel={`Nickname: ${nickname}`}
+            >
+              {nickname}
+            </Text>
+          ) : null}
+          <ChamferButton
+            label={nickname ? 'edit' : 'set nickname'}
+            onPress={onEdit}
+            compact
+            style={styles.nicknameAction}
+          />
+        </View>
       )}
 
       <View style={styles.themeBlock}>
@@ -165,10 +166,39 @@ function ProfileBody() {
             );
           })}
         </View>
-        <ChamferButton
-          label={mode === 'light' ? 'dark mode' : 'light mode'}
-          onPress={() => setColorMode(mode === 'light' ? 'dark' : 'light')}
-        />
+        <Chamfer
+          fill="none"
+          stroke={bg}
+          strokeWidth={2}
+          segments={2}
+          activeSegment={mode === 'light' ? 0 : 1}
+          activeFill={bg}
+          style={styles.modeFace}
+          contentStyle={styles.modeRow}
+        >
+          {(['light', 'dark'] as const).map((option) => {
+            const selected = mode === option;
+            return (
+              <HapticPressable
+                key={option}
+                onPress={() => setColorMode(option)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`${option} mode`}
+                style={styles.modeSide}
+              >
+                <Text
+                  style={[
+                    styles.modeLabel,
+                    { color: selected ? theme.accent : bg },
+                  ]}
+                >
+                  {option}
+                </Text>
+              </HapticPressable>
+            );
+          })}
+        </Chamfer>
       </View>
     </View>
   );
@@ -216,9 +246,12 @@ const styles = StyleSheet.create({
   },
   nicknameRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     gap: 10,
     flexWrap: 'wrap',
+  },
+  nicknameAction: {
+    alignSelf: 'center',
   },
   nicknameLabel: {
     fontFamily: fonts.regular,
@@ -256,6 +289,24 @@ const styles = StyleSheet.create({
   swatchInner: {
     height: 28,
     alignSelf: 'stretch',
+  },
+  modeFace: {
+    alignSelf: 'stretch',
+  },
+  modeRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  modeSide: {
+    flex: 1,
+    minHeight: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+  },
+  modeLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 28,
   },
   composer: {
     alignSelf: 'stretch',

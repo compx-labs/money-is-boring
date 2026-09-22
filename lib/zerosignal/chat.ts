@@ -1,11 +1,18 @@
 import type { KeyStoreAPI } from '@algorandfoundation/react-native-keystore';
 import { sha256 } from '@noble/hashes/sha2.js';
-import { AGENT_SYSTEM_PROMPT, agentToolSchemas, runAgentTool } from '@/lib/agent/host';
-import { composeAgentInput, loadNotebookContext } from '@/lib/notebook';
-import { ZS_MODEL } from '@/lib/theme';
+import { fromBaseUnits } from '@/lib/algorand/balances';
 import { b64Encode } from '@/lib/zerosignal/bytes';
-import { discoverZsNode, type ZsNode } from '@/lib/zerosignal/discover';
+import type { ZsNode } from '@/lib/zerosignal/discover';
 import { composeOpen, ensureMbrDeposit, isEscrowOptedIn, isMbrPoolGuard, submitPresignedSettleGroup } from '@/lib/zerosignal/escrow';
+import { ticketLocksUsdc, type PayListener, type PayStep } from '@/lib/zerosignal/pay';
+import {
+  emptySseFields,
+  failedResponseMessage,
+  finalizeSseAcc,
+  ingestFrame,
+  namedFunctionCalls,
+  type FunctionCall,
+} from '@/lib/zerosignal/sse-tools';
 import {
   parseTicket,
   parseReceipt,
@@ -37,18 +44,38 @@ import {
   type SseEvent,
 } from '@/lib/zerosignal/wire';
 
-const MAX_OUTPUT = 2048;
+export const MAX_OUTPUT = 2048;
 const MAX_PRICE_MICRO = 100_000;
 const RESERVE_MIN_TTL_SEC = 15;
-const MAX_TOOL_ROUNDS = 4;
 
-export type ChatTurn = { role: 'user' | 'assistant'; text: string };
+export type ChatTurn = { role: 'user' | 'assistant' | 'system'; text: string };
+export type { FunctionCall };
+export type StreamAcc = {
+  text: string;
+  reasoning: string;
+  eventTypes: string[];
+  contentFrames: Uint8Array[];
+  frameIndex: number;
+  settleGroupB64: string | null;
+  receipt: UsageReceipt | null;
+  functionCalls: Map<string, FunctionCall>;
+};
 
 function openaiError(json: unknown, fallback: string, status: number): never {
   const err = json as { error?: { message?: string; code?: string } | string; message?: string } | null;
   const message =
     (typeof err?.error === 'string' ? err.error : err?.error?.message) || err?.message || fallback;
   throw new Error(`${message} (${status})`);
+}
+
+async function readHttpJson(res: Response): Promise<unknown> {
+  const raw = await res.text().catch(() => '');
+  if (!raw.trim()) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return { message: raw.replace(/\s+/g, ' ').trim().slice(0, 160) };
+  }
 }
 
 function stripSlash(url: string): string {
@@ -109,7 +136,7 @@ async function reserveTicket(args: {
   });
 
   if (res.status !== 200) {
-    const json = await res.json().catch(() => null);
+    const json = await readHttpJson(res);
     const message =
       typeof json === 'object' && json
         ? String(
@@ -152,63 +179,15 @@ async function reserveTicket(args: {
   return { ticket, responseKey, presignedOpenTxn };
 }
 
-function collectDelta(obj: unknown, soFar: string): string {
-  if (!obj || typeof obj !== 'object') return soFar;
-  const rec = obj as { type?: unknown; delta?: unknown };
-  if (rec.type === 'response.output_text.delta' && typeof rec.delta === 'string') {
-    return soFar + rec.delta;
-  }
-  return soFar;
-}
-
-function isTerminal(obj: unknown): boolean {
-  if (!obj || typeof obj !== 'object') return false;
-  const type = (obj as { type?: unknown }).type;
-  return type === 'response.completed' || type === 'response.incomplete' || type === 'response.failed';
-}
-
-type FunctionCall = { call_id: string; name: string; arguments: string };
-
-type StreamAcc = {
-  text: string;
-  contentFrames: Uint8Array[];
-  frameIndex: number;
-  settleGroupB64: string | null;
-  receipt: UsageReceipt | null;
-  functionCalls: Map<string, FunctionCall>;
-};
-
-function considerFunctionItem(item: unknown, calls: Map<string, FunctionCall>): void {
-  if (!item || typeof item !== 'object') return;
-  const it = item as Record<string, unknown>;
-  if (it.type !== 'function_call' || typeof it.name !== 'string') return;
-  const call_id = String(it.call_id ?? it.id ?? it.name);
-  calls.set(call_id, {
-    call_id,
-    name: it.name,
-    arguments: typeof it.arguments === 'string' ? it.arguments : JSON.stringify(it.arguments ?? {}),
-  });
-}
-
-function ingestFunctionCall(obj: unknown, calls: Map<string, FunctionCall>): void {
-  if (!obj || typeof obj !== 'object') return;
-  const rec = obj as Record<string, unknown>;
-  if (rec.type === 'response.output_item.done' || rec.type === 'response.output_item.added') {
-    considerFunctionItem(rec.item, calls);
-  }
-  if (rec.type === 'response.function_call_arguments.done') {
-    const call_id = String(rec.call_id ?? rec.item_id ?? '');
-    if (!call_id) return;
-    const prev = calls.get(call_id);
-    const args = typeof rec.arguments === 'string' ? rec.arguments : prev?.arguments ?? '{}';
-    const name = typeof rec.name === 'string' ? rec.name : prev?.name;
-    if (name) calls.set(call_id, { call_id, name, arguments: args });
-  }
-  if (rec.type === 'response.completed' && rec.response && typeof rec.response === 'object') {
-    const output = (rec.response as { output?: unknown }).output;
-    if (Array.isArray(output)) {
-      for (const item of output) considerFunctionItem(item, calls);
-    }
+function throwIfFailedFrame(plaintext: Uint8Array): void {
+  const raw = new TextDecoder().decode(plaintext).trim();
+  if (!raw.startsWith('{') && !raw.startsWith('[')) return;
+  try {
+    const fail = failedResponseMessage(JSON.parse(raw));
+    if (fail) throw new Error(fail);
+  } catch (err) {
+    if (err instanceof SyntaxError) return;
+    throw err;
   }
 }
 
@@ -246,21 +225,10 @@ function handleSse(
     return;
   }
   acc.contentFrames.push(plaintext);
-  try {
-    const obj = JSON.parse(new TextDecoder().decode(plaintext));
-    ingestFunctionCall(obj, acc.functionCalls);
-    const next = collectDelta(obj, acc.text);
-    if (next !== acc.text) {
-      acc.text = next;
-      args.onDelta?.(acc.text);
-    }
-    if (isTerminal(obj) && (obj as { type?: string }).type === 'response.failed') {
-      const err = obj as { response?: { error?: { message?: string } } };
-      if (err.response?.error?.message) throw new Error(err.response.error.message);
-    }
-  } catch {
-    // Non-JSON content frames are still hashed.
-  }
+  const before = acc.text;
+  ingestFrame(plaintext, acc);
+  if (acc.text !== before) args.onDelta?.(acc.text);
+  throwIfFailedFrame(plaintext);
 }
 
 async function readSse(
@@ -268,16 +236,16 @@ async function readSse(
   args: { responseKey: Uint8Array; txID: string; ticketID: string; onDelta?: (text: string) => void },
 ): Promise<StreamAcc> {
   const acc: StreamAcc = {
-    text: '',
+    ...emptySseFields(),
     contentFrames: [],
     frameIndex: 0,
     settleGroupB64: null,
     receipt: null,
-    functionCalls: new Map(),
   };
   const reader = res.body?.getReader?.();
   if (!reader) {
     for (const ev of parseSseStream(await res.text())) handleSse(ev, acc, args);
+    finalizeSseAcc(acc);
     return acc;
   }
 
@@ -298,6 +266,10 @@ async function readSse(
   }
   const tail = parseSseBlock(buffer);
   if (tail) handleSse(tail, acc, args);
+  finalizeSseAcc(acc);
+  if (!acc.text && namedFunctionCalls(acc.functionCalls).length === 0) {
+    console.warn('[agent pay] empty inference', acc.eventTypes.slice(0, 24));
+  }
   return acc;
 }
 
@@ -307,24 +279,45 @@ function bodyHashHexLocal(frames: Uint8Array[]): string {
   return Buffer.from(h.digest()).toString('hex');
 }
 
-type ResponseInput =
-  | { role: 'system' | 'user' | 'assistant'; content: string }
-  | { type: 'function_call'; call_id: string; name: string; arguments: string }
-  | { type: 'function_call_output'; call_id: string; output: string };
+/**
+ * Pause for the composer button, then Face ID on the next `store.sign`.
+ * Ticket-pool setup always confirms. Inference lock skips when that toggle is off.
+ */
+export async function maybeWaitToSpend(
+  input: { onPay?: PayListener; awaitSign?: () => Promise<void> },
+  step: PayStep,
+  amountLabel?: string,
+  confirmInference = true,
+): Promise<void> {
+  if (step === 'openEscrow' && !confirmInference) return;
+  input.onPay?.({ type: 'step', step, amountLabel });
+  await input.awaitSign?.();
+}
 
-async function sealedRound(input: {
+function isSignCancel(err: unknown): boolean {
+  const raw = err instanceof Error ? err.message : String(err);
+  return raw.toLowerCase().includes('sign cancelled');
+}
+
+/**
+ * One sealed pay-per-call inference round. Tickets, age, receipts, and settle
+ * stay here. Pi owns the tool loop — see lib/agent/turn.ts.
+ */
+export async function sealedRound(input: {
   node: ZsNode;
   store: Pick<KeyStoreAPI, 'sign'>;
   keyId: string;
   address: string;
   body: Uint8Array;
-  onStatus?: (step: string) => void;
+  onPay?: PayListener;
+  awaitSign?: () => Promise<void>;
   onDelta?: (text: string) => void;
+  confirmInference?: boolean;
 }): Promise<{ acc: StreamAcc; chargedMicro: number }> {
   const { node, store, keyId, address, body } = input;
+  const confirmInference = input.confirmInference ?? true;
   const identity = await newAgeIdentity();
 
-  input.onStatus?.('reserving');
   const reserved = await reserveTicket({
     node,
     store,
@@ -333,14 +326,16 @@ async function sealedRound(input: {
     body,
     identity,
   });
+  const lockLabel = fromBaseUnits(String(reserved.ticket.max_price), 6);
+  const locksUsdc = ticketLocksUsdc(reserved.ticket.max_price);
 
-  input.onStatus?.('opening escrow');
   if (!(await isEscrowOptedIn(address))) {
-    input.onStatus?.('funding ticket pool');
+    await maybeWaitToSpend(input, 'fundPool');
     await ensureMbrDeposit(store, keyId, address);
   }
   let txids: string[];
   try {
+    if (locksUsdc) await maybeWaitToSpend(input, 'openEscrow', lockLabel, confirmInference);
     txids = (
       await composeOpen(store, keyId, {
         ticket: reserved.ticket,
@@ -351,8 +346,9 @@ async function sealedRound(input: {
     ).txids;
   } catch (openErr) {
     if (!isMbrPoolGuard(openErr)) throw openErr;
-    input.onStatus?.('funding ticket pool');
+    await maybeWaitToSpend(input, 'fundPool');
     await ensureMbrDeposit(store, keyId, address);
+    if (locksUsdc) await maybeWaitToSpend(input, 'openEscrow', lockLabel, confirmInference);
     txids = (
       await composeOpen(store, keyId, {
         ticket: reserved.ticket,
@@ -379,7 +375,7 @@ async function sealedRound(input: {
     ephemeral: identity,
   });
 
-  input.onStatus?.('thinking');
+  input.onPay?.({ type: 'step', step: 'think' });
   const infer = await fetch(`${stripSlash(node.baseUrl)}/v1/responses`, {
     method: 'POST',
     headers: {
@@ -389,8 +385,8 @@ async function sealedRound(input: {
     body: new TextDecoder().decode(envelope),
   });
   if (!infer.ok) {
-    const json = await infer.json().catch(() => null);
-    openaiError(json, 'inference failed', infer.status);
+    const json = await readHttpJson(infer);
+    openaiError(json, infer.status === 403 ? 'forbidden' : 'inference failed', infer.status);
   }
 
   const acc = await readSse(infer, {
@@ -401,6 +397,7 @@ async function sealedRound(input: {
   });
 
   let chargedMicro = 0;
+  const usable = Boolean(acc.text || namedFunctionCalls(acc.functionCalls).length > 0);
   if (acc.receipt) {
     try {
       const hex = bodyHashHexLocal(acc.contentFrames);
@@ -412,109 +409,28 @@ async function sealedRound(input: {
         throw new Error('receipt amount exceeds ticket max_price');
       }
       chargedMicro = acc.receipt.amount_charged;
-      if (acc.settleGroupB64) {
+      const toolOnly = namedFunctionCalls(acc.functionCalls).length > 0 && !acc.text.trim();
+      // Tool hops must settle or the next sealed open cannot start.
+      // Spoken hops must not — "paying for inference" + Face ID over the
+      // reply is the native crash after the answer lands.
+      if (acc.settleGroupB64 && toolOnly) {
         await submitPresignedSettleGroup(store, keyId, {
           settleGroupB64: acc.settleGroupB64,
           payerAddress: address,
         });
       }
-    } catch {
-      // Operator force-finalizes after grace if the payer ack is silent.
+    } catch (err) {
+      if (isSignCancel(err) && !usable) throw err;
+      if (chargedMicro > 0) {
+        input.onPay?.({
+          type: 'warning',
+          step: 'settle',
+          message: 'inference payment will finish on-chain',
+        });
+      }
     }
   }
 
   reserved.responseKey.fill(0);
   return { acc, chargedMicro };
-}
-
-/**
- * One in-wallet chat turn. Speaks ZeroSignal's sealed pay-per-call protocol
- * from this device — no zs-proxy daemon, no always-on host, no relay.
- * Tool schemas come from the agent host; this wallet signs and submits.
- */
-export async function sendAgentMessage(input: {
-  store: Pick<KeyStoreAPI, 'sign'>;
-  keyId: string;
-  address: string;
-  history: ChatTurn[];
-  onStatus?: (step: string) => void;
-  onDelta?: (text: string) => void;
-}): Promise<{ text: string; chargedMicro: number; toolsMicro: bigint }> {
-  const { store, keyId, address } = input;
-  const latestUser = [...input.history].reverse().find((t) => t.role === 'user')?.text ?? '';
-  input.onStatus?.('finding a node');
-  const [node, notebook] = await Promise.all([
-    discoverZsNode(ZS_MODEL),
-    loadNotebookContext(latestUser),
-  ]);
-  const conversation: ResponseInput[] = composeAgentInput({
-    system: AGENT_SYSTEM_PROMPT,
-    profile: notebook.profile,
-    hits: notebook.hits,
-    history: input.history,
-  });
-
-  let chargedMicro = 0;
-  let toolsMicro = 0n;
-  let lastText = '';
-  let spoken = '';
-
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-    const includeTools = round < MAX_TOOL_ROUNDS - 1;
-    const requestBody: Record<string, unknown> = {
-      model: node.model,
-      input: conversation,
-      stream: true,
-      max_output_tokens: MAX_OUTPUT,
-    };
-    if (includeTools) {
-      requestBody.tools = agentToolSchemas();
-      requestBody.tool_choice = 'auto';
-    }
-    const body = new TextEncoder().encode(JSON.stringify(requestBody));
-    const { acc, chargedMicro: roundMicro } = await sealedRound({
-      node,
-      store,
-      keyId,
-      address,
-      body,
-      onStatus: input.onStatus,
-      onDelta: (text) => input.onDelta?.(spoken + text),
-    });
-    chargedMicro += roundMicro;
-    lastText = acc.text;
-    const calls = [...acc.functionCalls.values()];
-    if (calls.length === 0) {
-      if (!acc.text) throw new Error('ZeroSignal returned no text');
-      return { text: spoken + acc.text, chargedMicro, toolsMicro };
-    }
-
-    if (acc.text) spoken += `${acc.text}\n`;
-    for (const call of calls) {
-      conversation.push({
-        type: 'function_call',
-        call_id: call.call_id,
-        name: call.name,
-        arguments: call.arguments,
-      });
-    }
-    for (const call of calls) {
-      input.onStatus?.(call.name);
-      const result = await runAgentTool(call.name, call.arguments, {
-        store,
-        keyId,
-        address,
-        onStatus: input.onStatus,
-      });
-      toolsMicro += result.paidMicro;
-      conversation.push({
-        type: 'function_call_output',
-        call_id: call.call_id,
-        output: result.output,
-      });
-    }
-  }
-
-  if (!lastText && !spoken) throw new Error('ZeroSignal returned no text');
-  return { text: (spoken + lastText).trim(), chargedMicro, toolsMicro };
 }

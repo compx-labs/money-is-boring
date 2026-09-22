@@ -3,11 +3,13 @@ import {
   decodeUnsignedTransaction,
   makeApplicationOptInTxnFromObject,
   makeAssetTransferTxnWithSuggestedParamsFromObject,
+  makePaymentTxnWithSuggestedParamsFromObject,
   waitForConfirmation,
 } from 'algosdk';
 import type { KeyStoreAPI } from '@algorandfoundation/react-native-keystore';
 import { algod } from '@/lib/algorand/client';
 import type { HayTxn } from '@/lib/hay/router';
+import { transactionAuth } from '@/lib/keystore/auth-options';
 
 /** Hay serializes Uint8Array as `{ "0": n, "1": n, ... }`. Do not use Object.values (lexicographic keys). */
 export function bytesFromHayJson(value: unknown): Uint8Array {
@@ -62,6 +64,25 @@ export async function signHayGroup(
 
   if (!txid) throw new Error('Nothing for this device to sign');
   return { blobs, txid };
+}
+
+export async function signAndSubmitPayment(
+  store: Pick<KeyStoreAPI, 'sign'>,
+  keyId: string,
+  from: string,
+  to: string,
+  amountMicro: bigint,
+): Promise<void> {
+  const client = algod();
+  const suggestedParams = await client.getTransactionParams().do();
+  const txn = makePaymentTxnWithSuggestedParamsFromObject({
+    sender: from,
+    receiver: to,
+    amount: amountMicro,
+    suggestedParams,
+  });
+  const sig = await store.sign(keyId, txn.bytesToSign(), undefined, transactionAuth);
+  await submitSignedGroup([txn.attachSignature(from, sig)], txn.txID());
 }
 
 export async function signAndSubmitAssetOptIn(

@@ -17,6 +17,7 @@ export function ChamferButton({
   compact = false,
   overlap = false,
   accessibilityLabel,
+  color,
   style,
 }: {
   label: string;
@@ -25,12 +26,13 @@ export function ChamferButton({
   compact?: boolean;
   overlap?: boolean;
   accessibilityLabel?: string;
+  color?: string;
   style?: StyleProp<ViewStyle>;
 }) {
   const { accent, onAccent } = useAccent();
   const sheet = useSheetPalette();
   const fill = sheet?.ink ?? accent;
-  const labelColor = sheet ? accent : onAccent;
+  const labelColor = color ?? (sheet ? accent : onAccent);
   return (
     <HapticPressable
       onPress={onPress}

@@ -1,0 +1,17 @@
+diff --git a/build/src/run/ios/codeSigning/configureCodeSigning.js b/build/src/run/ios/codeSigning/configureCodeSigning.js
+index dcf3b5baabab8489225976ff92ce986e77d270bb..c439e75c5ecaffc9fd9c8cca03c5253a3a7298f7 100644
+--- a/build/src/run/ios/codeSigning/configureCodeSigning.js
++++ b/build/src/run/ios/codeSigning/configureCodeSigning.js
+@@ -67,7 +67,11 @@ function _interop_require_wildcard(obj, nodeInterop) {
+ }
+ async function ensureDeviceIsCodeSignedForDeploymentAsync(projectRoot) {
+     if (isCodeSigningConfigured(projectRoot)) {
+-        return null;
++        // Still return the team so xcodebuild gets -allowProvisioningUpdates.
++        // Returning null here skips profile download and fails device builds.
++        const signingInfo = (0, _xcodeCodeSigning.getCodeSigningInfoForPbxproj)(projectRoot);
++        const team = Object.values(signingInfo).flatMap((curr)=>curr.developmentTeams)[0];
++        return team ?? null;
+     }
+     return configureCodeSigningAsync(projectRoot);
+ }
